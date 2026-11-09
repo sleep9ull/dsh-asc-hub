@@ -101,3 +101,10 @@ test('the read-only switch reaches data-plane commands only', async () => {
   assert.deepEqual(globalFlags({ ...readOnly, mode: 'write' }), [])
   assert.equal(childEnv({ ...readOnly, mode: 'write' }).ASC_READ_ONLY, undefined)
 })
+
+test('action results are lossless JSON with no undefined members', async () => {
+  const { jsonClean } = await import('../host/dispatch.js')
+  const cleaned = jsonClean({ a: 1, b: undefined, c: { d: undefined, e: null }, f: [{ g: undefined, h: 'x' }] })
+  assert.deepEqual(cleaned, { a: 1, c: { e: null }, f: [{ h: 'x' }] })
+  assert.ok(!JSON.stringify(jsonClean({ x: undefined })).includes('undefined'))
+})

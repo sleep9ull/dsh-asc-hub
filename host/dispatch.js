@@ -41,6 +41,28 @@ function isRecord(value) {
   return value !== null && typeof value === 'object' && !Array.isArray(value)
 }
 
+/**
+ * Drop `undefined` members recursively.
+ *
+ * A tool result must be lossless JSON, and an optional field that is absent must
+ * be absent rather than explicitly undefined; the same shape travels over the RPC
+ * route, so both adapters get clean data from one place.
+ * @param {unknown} value
+ * @returns {unknown}
+ */
+export function jsonClean(value) {
+  if (Array.isArray(value)) return value.map(jsonClean)
+  if (value !== null && typeof value === 'object') {
+    /** @type {Record<string, unknown>} */
+    const out = {}
+    for (const [key, item] of Object.entries(value)) {
+      if (item !== undefined) out[key] = jsonClean(item)
+    }
+    return out
+  }
+  return value
+}
+
 /** Which operation kind one action represents, for the status label. */
 function operationKind(action) {
   if (action.startsWith('builds.')) return 'upload'
@@ -249,7 +271,7 @@ export function createHub(ctx, config) {
     try {
       const value = await spec.run(input, { signal: options.signal })
       lastError = null
-      return value
+      return jsonClean(value)
     } catch (error) {
       const hubError = asHubError(error)
       // A cancelled call is not a product failure; do not paint the button red.

@@ -47,14 +47,17 @@ window.__ModuleLoader__.load({
       'label.build': ['build', 'build'],
       'label.review': ['review', 'review'],
       'label.error': ['error', 'error'],
+      'stepOf': ['Step {current} of {total}', '第 {current} 步，共 {total} 步'],
+      'railLabel': ['Setup progress', '接入进度'],
       'step.done': ['Done', '已完成'],
       'step.current': ['Current', '当前'],
       'step.pending': ['Pending', '待进行'],
       'onboardingIntro': ['Install the engine, then sign in with an App Store Connect API key.', '先安装引擎，再用 App Store Connect API 密钥登录。'],
       'stepEngine': ['Install the asc engine', '安装 asc 引擎'],
       'stepLogin': ['Sign in to App Store Connect', '登录 App Store Connect'],
-      'stepReady': ['Ready', '就绪'],
+      'stepReady': ['Finish setup', '完成接入'],
       'engineDetected': ['asc {version} at {path}', '在 {path} 检测到 asc {version}'],
+      'engineStamped': ['asc {version} ready', 'asc {version} 已就绪'],
       'engineMissing': ['asc was not found on this Mac.', '本机未找到 asc。'],
       'installMethodNote': ['Uses Homebrew when it is installed; otherwise it downloads the official asc build with curl.', '本机有 Homebrew 时用它安装；没有时用 curl 下载官方 asc 构建。'],
       'installAsc': ['Install asc', '安装 asc'],
@@ -223,18 +226,32 @@ window.__ModuleLoader__.load({
 [data-asc-hub] .asc-hub-icon-btn:hover { background: var(--dsw-alias-interactive-bg-hover); }
 [data-asc-hub] .asc-hub-mode { padding: 1px 6px; border: 1px solid var(--dsw-alias-border-l2); border-radius: 999px; color: var(--dsw-alias-label-secondary); font-size: 10px; }
 [data-asc-hub] .asc-hub-live { color: var(--dsw-alias-label-secondary); font-size: 11px; overflow-wrap: anywhere; }
-[data-asc-hub] .asc-hub-intro { color: var(--dsw-alias-label-secondary); overflow-wrap: anywhere; }
-[data-asc-hub] .asc-hub-steps { display: flex; flex-direction: column; gap: 14px; list-style: none; padding: 0; }
-[data-asc-hub] .asc-hub-step { display: grid; grid-template-columns: 20px minmax(0, 1fr); gap: 2px 8px; min-width: 0; }
-[data-asc-hub] .asc-hub-step[data-state="pending"] { color: var(--dsw-alias-label-secondary); }
-[data-asc-hub] .asc-hub-step-number { display: grid; place-items: center; width: 20px; height: 20px; border: 1px solid var(--dsw-alias-border-l2); border-radius: 50%; color: var(--dsw-alias-label-secondary); font-size: 10px; }
-[data-asc-hub] .asc-hub-step[data-state="current"] .asc-hub-step-number { border-color: var(--dsw-alias-brand-primary); color: var(--dsw-alias-brand-primary); }
-[data-asc-hub] .asc-hub-step[data-state="done"] .asc-hub-step-number { border-color: var(--dsw-alias-state-success-primary); color: var(--dsw-alias-state-success-primary); }
-[data-asc-hub] .asc-hub-step-head { display: flex; align-items: baseline; justify-content: space-between; gap: 6px; min-width: 0; }
-[data-asc-hub] .asc-hub-step-title { font-size: 12px; font-weight: 600; line-height: 20px; overflow-wrap: anywhere; }
-[data-asc-hub] .asc-hub-step-state { flex: none; color: var(--dsw-alias-label-secondary); font-size: 10px; }
-[data-asc-hub] .asc-hub-step-body { grid-column: 2; display: flex; flex-direction: column; gap: 8px; min-width: 0; margin-top: 4px; }
-[data-asc-hub] .asc-hub-step-summary { grid-column: 2; color: var(--dsw-alias-label-secondary); font-size: 11px; overflow-wrap: anywhere; margin-top: 2px; }
+[data-asc-hub] .asc-hub-onboarding { display: flex; flex-direction: column; min-width: 0; }
+[data-asc-hub] .asc-hub-rail-wrap { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
+[data-asc-hub] .asc-hub-rail { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 4px; }
+[data-asc-hub] .asc-hub-rail-seg { height: 3px; border-radius: 2px; background: var(--dsw-alias-border-l1); transition: background-color 240ms ease, opacity 240ms ease; }
+[data-asc-hub] .asc-hub-rail-seg[data-state="done"] { background: var(--dsw-alias-state-success-primary); }
+[data-asc-hub] .asc-hub-rail-seg[data-state="current"] { background: var(--dsw-alias-brand-primary); }
+[data-asc-hub] .asc-hub-rail-text { color: var(--dsw-alias-label-secondary); font-size: 11px; line-height: 1.4; font-variant-numeric: tabular-nums; }
+[data-asc-hub] .asc-hub-intro { margin-bottom: 12px; color: var(--dsw-alias-label-secondary); font-size: 11px; line-height: 1.5; overflow-wrap: anywhere; }
+[data-asc-hub] .asc-hub-gates-passed { display: flex; flex-direction: column; gap: 3px; margin-bottom: 12px; padding-bottom: 10px; border-bottom: 1px solid var(--dsw-alias-border-l1); }
+[data-asc-hub] .asc-hub-gate-passed { display: grid; grid-template-columns: 11px minmax(0, 1fr); gap: 7px; align-items: baseline; min-width: 0; color: var(--dsw-alias-label-secondary); font-size: 12px; line-height: 1.45; }
+[data-asc-hub] .asc-hub-gate-check { color: var(--dsw-alias-state-success-primary); font-size: 11px; line-height: 1.45; }
+[data-asc-hub] .asc-hub-gate-passed-text { display: flex; flex-wrap: wrap; gap: 1px 7px; min-width: 0; }
+[data-asc-hub] .asc-hub-gate-passed-title { font-weight: 500; }
+[data-asc-hub] .asc-hub-gate-passed-summary { color: var(--dsw-alias-label-secondary); opacity: .78; overflow-wrap: anywhere; }
+[data-asc-hub] .asc-hub-gate { min-width: 0; padding-left: 11px; border-left: 2px solid var(--dsw-alias-brand-primary); }
+[data-asc-hub] .asc-hub-gate-title { font-size: 20px; font-weight: 600; line-height: 1.15; letter-spacing: -0.011em; overflow-wrap: anywhere; }
+[data-asc-hub] .asc-hub-gate-body { display: flex; flex-direction: column; gap: 10px; min-width: 0; margin-top: 12px; }
+[data-asc-hub] .asc-hub-step-body { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+[data-asc-hub] .asc-hub-gate-body .asc-hub-btn-primary { width: 100%; min-height: 32px; font-size: 13px; }
+[data-asc-hub] .asc-hub-gates-queued { display: flex; flex-direction: column; gap: 7px; margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--dsw-alias-border-l1); }
+[data-asc-hub] .asc-hub-gate-queued { display: grid; grid-template-columns: 12px minmax(0, 1fr); gap: 7px; align-items: baseline; min-width: 0; color: var(--dsw-alias-label-secondary); font-size: 13px; line-height: 1.4; }
+[data-asc-hub] .asc-hub-gate-num { font-size: 11px; line-height: 1.65; font-variant-numeric: tabular-nums; opacity: .72; }
+[data-asc-hub] .asc-hub-gate-kicker { color: var(--dsw-alias-label-secondary); font-size: 11px; line-height: 1.4; }
+@media (prefers-reduced-motion: reduce) {
+  [data-asc-hub] .asc-hub-rail-seg { transition: none; }
+}
 [data-asc-hub] .asc-hub-card { display: flex; flex-direction: column; gap: 8px; min-width: 0; padding: 10px; border: 1px solid var(--dsw-alias-border-l1); border-radius: var(--dsw-radius-lg, 10px); background: var(--dsw-alias-bg-layer-1); }
 [data-asc-hub] .asc-hub-card-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; min-width: 0; }
 [data-asc-hub] .asc-hub-card-title { font-size: 12px; font-weight: 600; overflow-wrap: anywhere; }
@@ -553,17 +570,47 @@ window.__ModuleLoader__.load({
       return [h('dt', { key: 't' }, label), h('dd', { key: 'd' }, value)]
     }
 
-    function Step({ t, number, title, state, current, children }) {
-      return h('li', {
-        className: 'asc-hub-step',
-        'data-state': state,
-        'aria-current': current ? 'step' : undefined,
-      },
-        h('span', { className: 'asc-hub-step-number', 'aria-hidden': 'true' }, state === 'done' ? '✓' : String(number)),
-        h('div', { className: 'asc-hub-step-head' },
-          h('h3', { className: 'asc-hub-step-title' }, title),
-          h('span', { className: 'asc-hub-step-state' }, t('step.' + state))),
-        children)
+    /** The three-segment rail is the only ornament: it answers "where am I". */
+    function SetupRail({ t, current, total }) {
+      return h('div', { className: 'asc-hub-rail-wrap' },
+        h('div', {
+          className: 'asc-hub-rail',
+          role: 'progressbar',
+          'aria-valuemin': 1,
+          'aria-valuemax': total,
+          'aria-valuenow': current,
+          'aria-label': t('railLabel'),
+        },
+          Array.from({ length: total }, (_, index) => h('span', {
+            key: String(index),
+            className: 'asc-hub-rail-seg',
+            'data-state': index + 1 < current ? 'done' : index + 1 === current ? 'current' : 'queued',
+          }))),
+        h('p', { className: 'asc-hub-rail-text' }, t('stepOf', { current, total })))
+    }
+
+    /**
+     * The gate in progress is the page: one 20px headline, one spine, the work.
+     * Everything else on this screen is a single quiet line.
+     */
+    function ActiveGate({ title, children }) {
+      return h('section', { className: 'asc-hub-gate', 'aria-current': 'step' },
+        h('h3', { className: 'asc-hub-gate-title' }, title),
+        h('div', { className: 'asc-hub-gate-body' }, children))
+    }
+
+    function PassedGate({ title, summary }) {
+      return h('p', { className: 'asc-hub-gate-passed' },
+        h('span', { className: 'asc-hub-gate-check', 'aria-hidden': 'true' }, '✓'),
+        h('span', { className: 'asc-hub-gate-passed-text' },
+          h('span', { className: 'asc-hub-gate-passed-title' }, title),
+          summary ? h('span', { className: 'asc-hub-gate-passed-summary' }, summary) : null))
+    }
+
+    function QueuedGate({ index, title }) {
+      return h('p', { className: 'asc-hub-gate-queued' },
+        h('span', { className: 'asc-hub-gate-num', 'aria-hidden': 'true' }, String(index)),
+        h('span', null, title))
     }
 
     /* ------------------------------------------------------------------ *
@@ -817,27 +864,45 @@ window.__ModuleLoader__.load({
     }
 
     function Onboarding({ t, store, engine, auth, engineReady, authReady, onConsole, keepOnboarding }) {
-      const engineState = engineReady ? 'done' : 'current'
-      const loginState = authReady ? 'done' : engineReady ? 'current' : 'pending'
-      const readyState = engineReady && authReady ? 'current' : 'pending'
+      const total = 3
+      const current = !engineReady ? 1 : !authReady ? 2 : 3
+
+      const passed = []
+      if (engineReady) {
+        passed.push({
+          key: 'engine',
+          title: t('stepEngine'),
+          summary: t('engineStamped', { version: (engine && engine.version) || t('unknown') }),
+        })
+      }
+      if (engineReady && authReady) {
+        passed.push({ key: 'login', title: t('stepLogin'), summary: t('signedIn') })
+      }
+
+      const queued = []
+      if (current < 2) queued.push({ index: 2, title: t('stepLogin') })
+      if (current < 3) queued.push({ index: 3, title: t('stepReady') })
+
+      const active = current === 1
+        ? { title: t('stepEngine'), body: h(EngineStep, { t, store, engine, engineReady, keepOnboarding }) }
+        : current === 2
+          ? { title: t('stepLogin'), body: h(LoginStep, { t, store, keepOnboarding }) }
+          : { title: t('stepReady'), body: h(ReadyStep, { t, engine, auth, onConsole }) }
+
       return h('section', { className: 'asc-hub-onboarding' },
-        h('p', { className: 'asc-hub-intro' }, t('onboardingIntro')),
-        h('ol', { className: 'asc-hub-steps' },
-          h(Step, { t, number: 1, title: t('stepEngine'), state: engineState, current: engineState === 'current' },
-            engineState === 'current'
-              ? h(EngineStep, { t, store, engine, engineReady, keepOnboarding })
-              : h('p', { className: 'asc-hub-step-summary' }, t('engineDetected', {
-                version: (engine && engine.version) || t('unknown'),
-                path: (engine && engine.path) || '',
-              }))),
-          h(Step, { t, number: 2, title: t('stepLogin'), state: loginState, current: loginState === 'current' },
-            loginState === 'current'
-              ? h(LoginStep, { t, store, keepOnboarding })
-              : h('p', { className: 'asc-hub-step-summary' }, loginState === 'done' ? t('signedIn') : t('loginPending'))),
-          h(Step, { t, number: 3, title: t('stepReady'), state: readyState, current: readyState === 'current' },
-            readyState === 'current'
-              ? h(ReadyStep, { t, engine, auth, onConsole })
-              : h('p', { className: 'asc-hub-step-summary' }, t('readyPending')))))
+        h(SetupRail, { t, current, total }),
+        passed.length === 0 && current === 1
+          ? h('p', { className: 'asc-hub-intro' }, t('onboardingIntro'))
+          : null,
+        passed.length > 0
+          ? h('div', { className: 'asc-hub-gates-passed' },
+            passed.map(item => h(PassedGate, { key: item.key, title: item.title, summary: item.summary })))
+          : null,
+        h(ActiveGate, { title: active.title, children: active.body }),
+        queued.length > 0
+          ? h('div', { className: 'asc-hub-gates-queued' },
+            queued.map(item => h(QueuedGate, { key: String(item.index), index: item.index, title: item.title })))
+          : null)
     }
 
     /* ------------------------------------------------------------------ *

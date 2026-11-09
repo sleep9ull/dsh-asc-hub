@@ -409,7 +409,7 @@ try {
 check('panel renders the sign-in onboarding path without throwing', loginError === null, loginError && loginError.stack)
 const loginText = collectText(loginTree).join(' | ')
 check('panel header is localized', loginText.includes('App Store Connect'))
-check('panel shows the detected engine version', loginText.includes('asc 6.5.3 at /opt/homebrew/bin/asc'), loginText)
+check('panel shows the detected engine version', loginText.includes('asc 6.5.3 ready'), loginText)
 check('sign-in step explains no password is requested', loginText.includes('never asks for an Apple ID password'), loginText)
 check('sign-in step explains the Keychain hand-off', loginText.includes('stores it in the macOS Keychain'))
 check('sign-in step explains the key never leaves the Mac', loginText.includes('never leaves this Mac'))

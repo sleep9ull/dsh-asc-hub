@@ -21,6 +21,9 @@ open-source `asc` CLI as an inherited external engine.
 - **Status trigger** in the session header — `asc: start | ready | build | review | error`, where
   everything before onboarding finishes reads `asc: start` — that opens the console in the right
   sidebar.
+- **Gate-sheet onboarding.** A three-segment progress rail and `Step n of 3`, the current step as the
+  panel's only 20px headline behind a brand spine, passed steps reduced to one stamped line, upcoming
+  steps to a numeral and a title, and every explanatory detail held at 11–12px secondary.
 - **Console**: app selection, build inventory and IPA upload, TestFlight groups plus "What to Test"
   and beta review submission, release readiness with blockers, review status and submission behind an
   explicit confirmation, vendor-scoped sales summary for a day or a week, and analytics report

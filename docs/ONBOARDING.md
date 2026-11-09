@@ -4,6 +4,13 @@ Two steps stand between a fresh install and a working console: install the `asc`
 App Store Connect with an API key. While either is unfinished the trigger in the session header
 reads `asc: start`; it flips to `asc: ready` only when both are done.
 
+The panel renders the flow as a **gate sheet**, not as three equal cards. A three-segment rail
+and a `Step 2 of 3` line sit at the top; the step you are on is the only 20px headline, marked by a
+brand-coloured spine down its left edge; steps already passed collapse to one stamped line
+(`✓ Install the asc engine   asc 6.5.3 ready`); steps still ahead are a bare numeral and title. Inside
+the active step, hints, field labels and install output stay at 11–12px secondary, so the headline —
+not the explanation — is what the eye lands on.
+
 Both onboarding steps are **local actions** (class `local-write` in the contract): they change this
 machine, not App Store Connect. They work in the default `read-only` mode, so onboarding needs no
 configuration change — `mode: write` is only required later, for publishing. Sign-in is

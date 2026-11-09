@@ -5,6 +5,9 @@ in the side panel next to the session that built it. Install the engine, sign in
 Connect API key, send a build to TestFlight, submit a release for review, read sales — and let the
 agent do the same through the `asc_hub` tool.
 
+> **Version 0.1.0** — the first stable release. See [CHANGELOG.md](CHANGELOG.md). Verified against
+> DeepSeek Harness 0.2.2-rc.1 and `asc` 6.5.3.
+
 `dsh-asc-hub` **inherits [`asc`](https://github.com/rorkai/App-Store-Connect-CLI) as an external
 engine**. It does not fork, vendor or absorb the CLI. The plugin owns the console, the state machine
 and the safety rails; `asc` owns the App Store Connect protocol, the credential storage and the

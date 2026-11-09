@@ -78,7 +78,8 @@ test('doctor normalizes sections into a flat check list', () => {
   })
   assert.equal(report.ok, true)
   assert.equal(report.checks[0].status, 'ok')
-  assert.ok(report.checks[0].name.includes('Keychain'))
+  assert.equal(report.checks[0].section, 'Keychain')
+  assert.equal(report.checks[0].message, 'reachable')
 })
 
 test('doctor is not ok when the summary carries warnings', () => {

@@ -62,10 +62,13 @@ export function normalizeDoctor(json) {
   for (const section of sections) {
     const title = field(section, 'title') ?? 'checks'
     for (const check of Array.isArray(field(section, 'checks')) ? field(section, 'checks') : []) {
+      // asc's check objects carry only `status`, `message` and an optional
+      // `recommendation`; the section title is their only grouping label.
       checks.push({
-        name: `${title}: ${field(check, 'name') ?? field(check, 'title') ?? 'check'}`,
+        section: title,
         status: field(check, 'status') ?? 'info',
         message: field(check, 'message') ?? '',
+        recommendation: field(check, 'recommendation') ?? undefined,
       })
     }
   }

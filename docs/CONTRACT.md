@@ -118,7 +118,7 @@ no binary behind. The result then carries `fallback: true` and `fallbackReason`
 | `auth.importKey` | local-write · panel-only | `{ "keyId", "issuerId", "privateKeyPem", "name"?, "keyType"? }` | `AuthState` |
 | `auth.logout` | local-write · panel-only | `{ "name": string, "all"?: boolean }` | `AuthState` |
 | `auth.switch` | local-write · panel-only | `{ "name": string }` | `AuthState` |
-| `auth.doctor` | read | — | `{ "ok": boolean, "summary": object, "checks": [{ "name", "status", "message" }] }` |
+| `auth.doctor` | read | — | `{ "ok": boolean, "summary": object, "checks": [{ "section", "status", "message", "recommendation"? }] }` |
 
 `AuthState` is derived from `asc auth status --output json`
 (`{ storageBackend, storageLocation, credentials, environmentCredentialsProvided,

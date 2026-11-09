@@ -18,8 +18,9 @@ open-source `asc` CLI as an inherited external engine.
 - **Panel-only sign-in.** App Store Connect API key (`.p8`) handed to `asc auth login`, which stores
   it in the macOS Keychain. Typed path or drag-and-drop import; the PEM only ever reaches a `0600`
   temporary file that is deleted in a `finally` block. The model cannot run sign-in (`CLIENT_ONLY`).
-- **Status trigger** in the session header — `asc: start | engine | login | ready | build | review |
-  error` — that opens the console in the right sidebar.
+- **Status trigger** in the session header — `asc: start | ready | build | review | error`, where
+  everything before onboarding finishes reads `asc: start` — that opens the console in the right
+  sidebar.
 - **Console**: app selection, build inventory and IPA upload, TestFlight groups plus "What to Test"
   and beta review submission, release readiness with blockers, review status and submission behind an
   explicit confirmation, vendor-scoped sales summary for a day or a week, and analytics report

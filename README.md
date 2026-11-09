@@ -30,8 +30,8 @@ command surface. Upgrading `asc` upgrades the product's capabilities.
   behind an explicit confirmation.
 - **Sales and analytics.** A sales summary per app for a day or a week (vendor-scoped, as Apple's
   reports are), plus the account's analytics report requests.
-- **One status trigger.** The session header shows `asc: start | engine | login | ready | build |
-  review | error`, derived from the live engine, credential and operation state.
+- **One status trigger.** The session header shows `asc: start | ready | build | review | error` —
+  anything before onboarding finishes reads `asc: start`, derived from the live engine, credential and operation state.
 - **The same operations for the agent.** Reads, engine installation and publishing are exposed as the
   `asc_hub` tool, and the panel and the tool call the same Host dispatcher, so they share
   classification, gating and redaction. Sign-in stays panel-only, so the model has no path to key

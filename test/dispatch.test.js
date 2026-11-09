@@ -104,7 +104,7 @@ test('status is derived, never stored, and safe on a bare host', async () => {
   assert.equal(state.lastError, null)
   assert.equal(typeof state.label, 'string')
   // The label vocabulary is the product's own.
-  assert.ok(['start', 'engine', 'login', 'ready', 'build', 'review', 'error'].includes(state.label))
+  assert.ok(['start', 'ready', 'build', 'review', 'error'].includes(state.label))
 })
 
 test('the escape hatch is read-only by construction, even in write mode', async () => {
@@ -129,4 +129,13 @@ test('the escape hatch refuses the command groups that own a typed action', asyn
       `${argv.join(' ')} must be refused`,
     )
   }
+})
+
+test('every pre-onboarding phase reports the label "start"', async () => {
+  // The user's vocabulary has five words. `phase` stays engine/login so the panel
+  // can pick the onboarding step; the trigger must not.
+  const h = hub({})
+  const state = await h.call('status', {})
+  if (state.phase === 'engine' || state.phase === 'login') assert.equal(state.label, 'start')
+  else assert.ok(['ready', 'build', 'review', 'error'].includes(state.label))
 })

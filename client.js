@@ -347,7 +347,9 @@ window.__ModuleLoader__.load({
      * panel. No polling; every panel action refreshes it afterwards.
      * ------------------------------------------------------------------ */
 
-    const PHASE_LABEL = { start: 'start', engine: 'engine', login: 'login', ready: 'ready', error: 'error' }
+    // Everything before onboarding finishes reads "start"; the phase still
+    // distinguishes engine from login so the body can show the right step.
+    const PHASE_LABEL = { start: 'start', engine: 'start', login: 'start', ready: 'ready', error: 'error' }
 
     function deriveLabel(status) {
       if (!status || typeof status !== 'object') return 'start'

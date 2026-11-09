@@ -1,8 +1,8 @@
 # Onboarding
 
 Two steps stand between a fresh install and a working console: install the `asc` engine, then connect
-App Store Connect with an API key. The trigger in the session header tracks both — `asc: engine` →
-`asc: login` → `asc: ready`.
+App Store Connect with an API key. While either is unfinished the trigger in the session header
+reads `asc: start`; it flips to `asc: ready` only when both are done.
 
 Both onboarding steps are **local actions** (class `local-write` in the contract): they change this
 machine, not App Store Connect. They work in the default `read-only` mode, so onboarding needs no
@@ -29,8 +29,8 @@ credentials). Resolution order:
 4. `/usr/local/bin/asc`,
 5. `~/.local/bin/asc`.
 
-If none resolves, the phase is `engine`, the trigger reads `asc: engine`, and the panel shows the
-install step.
+If none resolves, the phase is `engine` (still `asc: start` in the trigger), and the panel shows
+the install step.
 
 ### Option A — Homebrew (recommended)
 

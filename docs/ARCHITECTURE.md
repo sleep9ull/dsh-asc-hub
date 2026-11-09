@@ -181,17 +181,22 @@ otherwise                                        -> "ready"
 `phase: "start"` exists only for the first contact before any probe has finished. The trigger label
 is a second, user-facing projection of the same state:
 
+`phase` and `label` are deliberately different vocabularies. `phase` drives the panel, so it
+keeps `engine` and `login` apart; `label` drives the trigger and has five words, because a user
+who has not finished onboarding only needs to know that something is still to be done.
+
 | phase | extra condition | label | trigger | meaning |
 |---|---|---|---|---|
 | `start` | — | `start` | `asc: start` | first contact, nothing probed |
-| `engine` | — | `engine` | `asc: engine` | engine missing or installing |
-| `login` | — | `login` | `asc: login` | engine present, no credentials |
-| `busy` | operation kind `install` | `engine` | `asc: engine` | engine install running |
-| `busy` | operation kind `auth` | `login` | `asc: login` | sign-in running |
+| `engine` | — | `start` | `asc: start` | engine missing, or installing |
+| `login` | — | `start` | `asc: start` | engine present, no credentials, or signing in |
 | `busy` | operation kind `submit` | `review` | `asc: review` | submission running |
 | `busy` | any other operation | `build` | `asc: build` | upload / TestFlight running |
 | `error` | — | `error` | `asc: error` | last operation failed |
 | `ready` | — | `ready` | `asc: ready` | both ready, idle |
+
+An install or a sign-in is also `phase: engine` / `phase: login`, so the trigger keeps reading
+`asc: start` while the user is working through onboarding.
 
 `HubState` also carries `mode` and `checkedAt` so the panel can render a read-only banner and the
 age of the observation without asking again. The selected app id and vendor number live in the

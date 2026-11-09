@@ -57,9 +57,7 @@ the credential probe (`asc auth status`), the current operation and the last err
 
 | label | when |
 |---|---|
-| `asc: start` | first contact, nothing probed yet |
-| `asc: engine` | `asc` missing or being installed |
-| `asc: login` | engine present, no usable credentials |
+| `asc: start` | onboarding is unfinished — nothing probed yet, `asc` missing or installing, credentials missing or being added |
 | `asc: ready` | both ready, idle |
 | `asc: build` | an upload or TestFlight operation is running |
 | `asc: review` | a submission operation is running |

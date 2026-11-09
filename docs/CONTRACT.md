@@ -210,7 +210,7 @@ One derived object keeps the trigger and the panel in sync. `status` returns it:
 ```json
 {
   "phase": "start | engine | login | ready | busy | error",
-  "label": "start | engine | login | ready | build | review | error",
+  "label": "start | ready | build | review | error",
   "engine": EngineState,
   "auth": AuthState,
   "app": { "id": "...", "name": "..." } | null,
@@ -234,11 +234,14 @@ otherwise                                        -> "ready"
 `phase: "start"` is the first contact before any probe finished. The trigger shows
 `asc: <label>`; that string is the user's own vocabulary for the product:
 
+`label` is the user's vocabulary and has **five** words: every state before onboarding
+finishes reads `asc: start`, whatever step is missing and whether it is idle or running.
+`phase` is the panel's vocabulary and keeps `engine` and `login` distinct so the body can
+show the right onboarding step.
+
 | label | trigger text | meaning |
 |---|---|---|
-| `start` | `asc: start` | nothing probed yet / onboarding needed |
-| `engine` | `asc: engine` | the asc engine is missing or being installed |
-| `login` | `asc: login` | asc installed, no App Store Connect credentials |
+| `start` | `asc: start` | onboarding is not finished: nothing probed yet, the engine is missing or installing, or credentials are missing or being added |
 | `ready` | `asc: ready` | both ready, idle |
 | `build` | `asc: build` | an upload or TestFlight operation is running |
 | `review` | `asc: review` | a submission / review operation is running |

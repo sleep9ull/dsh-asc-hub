@@ -75,14 +75,11 @@ function operationKind(action) {
 
 /** Map a phase plus the running operation to the user-facing trigger label. */
 function labelFor(phase, operation) {
-  if (phase === 'busy') {
-    if (operation?.kind === 'submit') return 'review'
-    if (operation?.kind === 'install') return 'engine'
-    if (operation?.kind === 'auth') return 'login'
-    return 'build'
-  }
-  if (phase === 'engine') return 'engine'
-  if (phase === 'login') return 'login'
+  // `phase` is the panel's vocabulary (it decides which onboarding step to show);
+  // `label` is the user's, and it deliberately has five words: everything before
+  // onboarding finishes reads `asc: start`, whatever step is missing or running.
+  if (phase === 'engine' || phase === 'login') return 'start'
+  if (phase === 'busy') return operation?.kind === 'submit' ? 'review' : 'build'
   if (phase === 'error') return 'error'
   if (phase === 'ready') return 'ready'
   return 'start'

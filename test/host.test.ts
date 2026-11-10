@@ -1,8 +1,8 @@
 import { strict as assert } from 'node:assert'
 import { test } from 'node:test'
-import { normalizeConfig } from '../host/config.js'
-import { classifyExit, field, parseJson, pickArray } from '../host/asc.js'
-import { normalizeAuthState, normalizeDoctor } from '../host/auth.js'
+import { normalizeConfig } from '../dist/host/config.js'
+import { classifyExit, field, parseJson, pickArray } from '../dist/host/asc.js'
+import { normalizeAuthState, normalizeDoctor } from '../dist/host/auth.js'
 
 test('config defaults are safe', () => {
   const config = normalizeConfig(undefined)
@@ -22,12 +22,12 @@ test('config rejects a hostile mode and keeps typed values', () => {
 
 test('classifyExit maps the upstream exit codes to contract codes', () => {
   assert.equal(classifyExit(0, '', ''), undefined)
-  assert.equal(classifyExit(3, '', '').code, 'ASC_AUTH_MISSING')
-  assert.equal(classifyExit(2, '', 'Error: unknown flag').code, 'INVALID_INPUT')
-  assert.equal(classifyExit(6, '', '').code, 'READ_ONLY_MODE')
-  assert.equal(classifyExit(7, '', '').code, 'PROCESSING_PENDING')
-  assert.equal(classifyExit(1, '', 'Error: boom').code, 'ASC_FAILED')
-  assert.equal(classifyExit(1, '', 'HTTP 401 unauthorized').code, 'ASC_AUTH_MISSING')
+  assert.equal(classifyExit(3, '', '')?.code, 'ASC_AUTH_MISSING')
+  assert.equal(classifyExit(2, '', 'Error: unknown flag')?.code, 'INVALID_INPUT')
+  assert.equal(classifyExit(6, '', '')?.code, 'READ_ONLY_MODE')
+  assert.equal(classifyExit(7, '', '')?.code, 'PROCESSING_PENDING')
+  assert.equal(classifyExit(1, '', 'Error: boom')?.code, 'ASC_FAILED')
+  assert.equal(classifyExit(1, '', 'HTTP 401 unauthorized')?.code, 'ASC_AUTH_MISSING')
 })
 
 test('json helpers tolerate asc envelope drift', () => {
@@ -88,8 +88,8 @@ test('doctor is not ok when the summary carries warnings', () => {
 })
 
 test('the read-only switch reaches data-plane commands only', async () => {
-  const { childEnv, globalFlags } = await import('../host/exec.js')
-  const readOnly = { profile: null, mode: 'read-only', telemetryDisabled: true, bypassKeychain: false }
+  const { childEnv, globalFlags } = (await import('../dist/host/exec.js')) as any
+  const readOnly = { profile: null, mode: 'read-only' as const, telemetryDisabled: true, bypassKeychain: false }
   // Data-plane calls carry the kill switch, in flags and in the environment.
   assert.deepEqual(globalFlags(readOnly), ['--read-only'])
   assert.equal(childEnv(readOnly).ASC_READ_ONLY, '1')
@@ -98,12 +98,12 @@ test('the read-only switch reaches data-plane commands only', async () => {
   assert.deepEqual(globalFlags(readOnly, { local: true }), [])
   assert.equal(childEnv(readOnly, undefined, { local: true }).ASC_READ_ONLY, undefined)
   // Write mode never carries it.
-  assert.deepEqual(globalFlags({ ...readOnly, mode: 'write' }), [])
-  assert.equal(childEnv({ ...readOnly, mode: 'write' }).ASC_READ_ONLY, undefined)
+  assert.deepEqual(globalFlags({ ...readOnly, mode: 'write' as const }), [])
+  assert.equal(childEnv({ ...readOnly, mode: 'write' as const }).ASC_READ_ONLY, undefined)
 })
 
 test('action results are lossless JSON with no undefined members', async () => {
-  const { jsonClean } = await import('../host/dispatch.js')
+  const { jsonClean } = (await import('../dist/host/dispatch.js')) as any
   const cleaned = jsonClean({ a: 1, b: undefined, c: { d: undefined, e: null }, f: [{ g: undefined, h: 'x' }] })
   assert.deepEqual(cleaned, { a: 1, c: { e: null }, f: [{ h: 'x' }] })
   assert.ok(!JSON.stringify(jsonClean({ x: undefined })).includes('undefined'))
@@ -111,8 +111,8 @@ test('action results are lossless JSON with no undefined members', async () => {
 
 
 test('status reports both versions and the update slot', async () => {
-  const { createHub } = await import('../host/dispatch.js')
-  const { normalizeConfig } = await import('../host/config.js')
+  const { createHub } = (await import('../dist/host/dispatch.js')) as any
+  const { normalizeConfig } = (await import('../dist/host/config.js')) as any
   const ctx = {
     get: () => undefined,
     effect: () => () => {},
@@ -132,36 +132,36 @@ test('status reports both versions and the update slot', async () => {
 })
 
 test('the mode switch flips this session and stays panel-only', async () => {
-  const { createHub } = await import('../host/dispatch.js')
-  const { normalizeConfig } = await import('../host/config.js')
+  const { createHub } = (await import('../dist/host/dispatch.js')) as any
+  const { normalizeConfig } = (await import('../dist/host/config.js')) as any
   const ctx = { get: () => undefined, effect: () => () => {}, on: () => () => {}, logger: { info() {}, warn() {}, debug() {} } }
   const hub = createHub(ctx, normalizeConfig({ mode: 'read-only' }))
   try {
     assert.equal((await hub.call('status', {}, { caller: 'client' })).mode, 'read-only')
     assert.equal((await hub.call('mode.set', { mode: 'write' }, { caller: 'client' })).mode, 'write')
     assert.equal(hub.config.mode, 'write')
-    assert.equal((await hub.call('mode.set', { mode: 'read-only' }, { caller: 'client' })).mode, 'read-only')
-    await assert.rejects(() => hub.call('mode.set', { mode: 'root' }, { caller: 'client' }), (error) => error.code === 'INVALID_INPUT')
+    assert.equal((await hub.call('mode.set', { mode: 'read-only' as const }, { caller: 'client' })).mode, 'read-only')
+    await assert.rejects(() => hub.call('mode.set', { mode: 'root' }, { caller: 'client' }), (error: any) => error.code === 'INVALID_INPUT')
     // The model cannot unlock writing on its own.
-    await assert.rejects(() => hub.call('mode.set', { mode: 'write' }, { caller: 'tool' }), (error) => error.code === 'CLIENT_ONLY')
+    await assert.rejects(() => hub.call('mode.set', { mode: 'write' }, { caller: 'tool' }), (error: any) => error.code === 'CLIENT_ONLY')
   } finally {
     hub.dispose()
   }
 })
 
 test('an update is applied by scope, and the plugin half stays manual', async () => {
-  const { createHub } = await import('../host/dispatch.js')
-  const { normalizeConfig } = await import('../host/config.js')
+  const { createHub } = (await import('../dist/host/dispatch.js')) as any
+  const { normalizeConfig } = (await import('../dist/host/config.js')) as any
   const ctx = { get: () => undefined, effect: () => () => {}, on: () => () => {}, logger: { info() {}, warn() {}, debug() {} } }
   const hub = createHub(ctx, normalizeConfig({ mode: 'read-only' }))
   try {
     await assert.rejects(
       () => hub.call('update.apply', { scope: 'hub' }, { caller: 'client' }),
-      (error) => error.code === 'MANUAL_UPDATE_REQUIRED',
+      (error: any) => error.code === 'MANUAL_UPDATE_REQUIRED',
     )
     await assert.rejects(
       () => hub.call('update.apply', { scope: 'hub' }, { caller: 'tool' }),
-      (error) => error.code === 'CLIENT_ONLY',
+      (error: any) => error.code === 'CLIENT_ONLY',
     )
   } finally {
     hub.dispose()
@@ -169,7 +169,7 @@ test('an update is applied by scope, and the plugin half stays manual', async ()
 })
 
 test('the skill document parses into a registerable definition', async () => {
-  const { readSkill, parseSkillDocument, registerSkill } = await import('../host/skill.js')
+  const { readSkill, parseSkillDocument, registerSkill } = (await import('../dist/host/skill.js')) as any
   const skill = readSkill()
   assert.equal(skill.name, 'asc-hub')
   assert.ok(skill.description.length > 40, 'the description is the routing text the model sees')
@@ -181,14 +181,14 @@ test('the skill document parses into a registerable definition', async () => {
 })
 
 test('skill registration is optional and never breaks the plugin', async () => {
-  const { registerSkill } = await import('../host/skill.js')
+  const { registerSkill } = (await import('../dist/host/skill.js')) as any
   const effects = []
-  const withoutService = { get: () => undefined, effect: fn => { effects.push(fn) }, logger: { warn() {} } }
+  const withoutService = { get: () => undefined, effect: (fn: any) => { effects.push(fn) }, logger: { warn() {} } }
   assert.equal(registerSkill(withoutService), false)
-  const registrations = []
+  const registrations: any[] = []
   const withService = {
-    get: name => (name === 'skills' ? { register: skill => { registrations.push(skill); return () => {} } } : undefined),
-    effect: fn => { const dispose = fn(); effects.push(dispose); return dispose },
+    get: (name: any) => (name === 'skills' ? { register: (skill: any) => { registrations.push(skill); return () => {} } } : undefined),
+    effect: (fn: any) => { const dispose = fn(); effects.push(dispose); return dispose },
     logger: { warn() {} },
   }
   assert.equal(registerSkill(withService), true)
@@ -202,7 +202,7 @@ test('skill pack detection reads the lock and tolerates every failure', async ()
   const { mkdtempSync, mkdirSync, writeFileSync, rmSync } = await import('node:fs')
   const { tmpdir } = await import('node:os')
   const { join } = await import('node:path')
-  const { detectSkills } = await import('../host/skills.js')
+  const { detectSkills } = (await import('../dist/host/skills.js')) as any
   const home = mkdtempSync(join(tmpdir(), 'asc-hub-skills-'))
   try {
     const agents = join(home, '.agents')
@@ -237,9 +237,9 @@ test('skill pack detection reads the lock and tolerates every failure', async ()
 })
 
 test('installing the pack is a local write that reports the last line', async () => {
-  const { installSkills } = await import('../host/skills.js')
-  const calls = []
-  const run = async argv => {
+  const { installSkills } = (await import('../dist/host/skills.js')) as any
+  const calls: any[] = []
+  const run = async (argv: any) => {
     calls.push(argv)
     return { stdout: 'cloning...\n25 skills installed\n', stderr: '', exitCode: 0 }
   }
@@ -249,7 +249,7 @@ test('installing the pack is a local write that reports the last line', async ()
   assert.equal(result.installed, false)
 
   const failing = async () => ({ stdout: '', stderr: 'git: command not found', exitCode: 127 })
-  await assert.rejects(() => installSkills({ run: failing }, { env: { HOME: '/nonexistent-home' } }), (error) => {
+  await assert.rejects(() => installSkills({ run: failing }, { env: { HOME: '/nonexistent-home' } }), (error: any) => {
     assert.equal(error.code, 'ASC_FAILED')
     assert.match(error.message, /git: command not found/)
     return true
@@ -257,7 +257,7 @@ test('installing the pack is a local write that reports the last line', async ()
 })
 
 test('a build row reads the marketing version and both TestFlight audiences', async () => {
-  const { normalizeBuilds } = await import('../host/ops.js')
+  const { normalizeBuilds } = (await import('../dist/host/ops.js')) as any
   // The ASC envelope `builds list --output json` prints: the build resource
   // carries CFBundleVersion only, so everything a person reads on the row comes
   // from the included resources.
@@ -300,7 +300,7 @@ test('a build row reads the marketing version and both TestFlight audiences', as
 })
 
 test('a build without includes still renders, and says nothing about TestFlight', async () => {
-  const { normalizeBuilds } = await import('../host/ops.js')
+  const { normalizeBuilds } = (await import('../dist/host/ops.js')) as any
   const [build] = normalizeBuilds({
     data: [{ type: 'builds', id: 'b2', attributes: { version: '7', processingState: 'PROCESSING' } }],
   })
@@ -317,7 +317,7 @@ test('a build without includes still renders, and says nothing about TestFlight'
 })
 
 test('the build-beta state alone can mark an audience, without groups', async () => {
-  const { normalizeBuilds } = await import('../host/ops.js')
+  const { normalizeBuilds } = (await import('../dist/host/ops.js')) as any
   const [internalOnly] = normalizeBuilds({
     data: [
       {
@@ -340,7 +340,7 @@ test('the build-beta state alone can mark an audience, without groups', async ()
 })
 
 test('a workspace path is shortened only against the home directory itself', async () => {
-  const { shortenPath, parseGitFacts } = await import('../host/workspace.js')
+  const { shortenPath, parseGitFacts } = (await import('../dist/host/workspace.js')) as any
   assert.equal(shortenPath('/Users/jane/dev/app', '/Users/jane'), '~/dev/app')
   assert.equal(shortenPath('/Users/jane', '/Users/jane'), '~')
   assert.equal(shortenPath('/Users/jane2/app', '/Users/jane'), '/Users/jane2/app')
@@ -356,13 +356,13 @@ test('a workspace path is shortened only against the home directory itself', asy
 })
 
 test('the workspace action reports the session directory, not the process one', async () => {
-  const { createWorkspace } = await import('../host/workspace.js')
+  const { createWorkspace } = (await import('../dist/host/workspace.js')) as any
   const session = { id: 's1', cwd: process.cwd() }
   const ctx = {
-    get: (name) => {
-      if (name === 'sessions') return { get: (id) => (id === 's1' ? session : undefined) }
+    get: (name: any) => {
+      if (name === 'sessions') return { get: (id: any) => (id === 's1' ? session : undefined) }
       if (name === 'workingDirectory') {
-        return { defaultDirectory: '/tmp', get: (target) => target.cwd }
+        return { defaultDirectory: '/tmp', get: (target: any) => target.cwd }
       }
       return undefined
     },
@@ -381,7 +381,7 @@ test('the workspace action reports the session directory, not the process one', 
 })
 
 test('the workspace action survives a missing harness service and no repository', async () => {
-  const { createWorkspace } = await import('../host/workspace.js')
+  const { createWorkspace } = (await import('../dist/host/workspace.js')) as any
   const workspace = createWorkspace({ get: () => undefined }, normalizeConfig({}))
   const info = await workspace.info({})
   assert.equal(info.cwd, process.cwd(), 'no workingDirectory service means the process directory')
@@ -389,7 +389,7 @@ test('the workspace action survives a missing harness service and no repository'
 
   // A directory that is not a git checkout answers the path and nothing else.
   const outside = createWorkspace({
-    get: (name) => (name === 'workingDirectory' ? { defaultDirectory: '/', get: () => '/' } : undefined),
+    get: (name: any) => (name === 'workingDirectory' ? { defaultDirectory: '/', get: () => '/' } : undefined),
   }, normalizeConfig({}))
   const root = await outside.info({})
   assert.equal(root.cwd, '/')
@@ -399,7 +399,7 @@ test('the workspace action survives a missing harness service and no repository'
 })
 
 test('the shipped skill pin comes from the engine, and a short sha still matches', async () => {
-  const { parseShippedRef, sameRef } = await import('../host/skills.js')
+  const { parseShippedRef, sameRef } = (await import('../dist/host/skills.js')) as any
   const help = [
     'Checks out the reviewed skills commit',
     'f52c4f04323bb2dfb21ca8be82e6494e9cd0b4d8',
@@ -417,7 +417,7 @@ test('the shipped skill pin comes from the engine, and a short sha still matches
 })
 
 test('git status is read as branch, drift and a dirty count', async () => {
-  const { parseGitStatus } = await import('../host/workspace.js')
+  const { parseGitStatus } = (await import('../dist/host/workspace.js')) as any
 
   const dirty = [
     '## main...origin/main [ahead 2, behind 1]',
@@ -470,9 +470,9 @@ test('git status is read as branch, drift and a dirty count', async () => {
 })
 
 test('the workspace action reports this checkout\'s working tree', async () => {
-  const { createWorkspace } = await import('../host/workspace.js')
+  const { createWorkspace } = (await import('../dist/host/workspace.js')) as any
   const workspace = createWorkspace({
-    get: (name) => (name === 'workingDirectory' ? { defaultDirectory: process.cwd(), get: () => process.cwd() } : undefined),
+    get: (name: any) => (name === 'workingDirectory' ? { defaultDirectory: process.cwd(), get: () => process.cwd() } : undefined),
   }, normalizeConfig({}))
   const info = await workspace.info({})
   assert.equal(typeof info.changed, 'number')
@@ -486,7 +486,7 @@ test('the build finds the project a directory builds', async () => {
   const { mkdtempSync, mkdirSync, writeFileSync } = await import('node:fs')
   const { join } = await import('node:path')
   const { tmpdir } = await import('node:os')
-  const { findProject, projectName } = await import('../host/build.js')
+  const { findProject, projectName } = (await import('../dist/host/build.js')) as any
 
   const root = mkdtempSync(join(tmpdir(), 'asc-hub-build-'))
   assert.equal(findProject(root), null, 'an empty directory has nothing to build')
@@ -512,7 +512,7 @@ test('the build finds the project a directory builds', async () => {
 })
 
 test('xcodebuild -list output is read as schemes, whatever shape it has', async () => {
-  const { parseSchemes } = await import('../host/build.js')
+  const { parseSchemes } = (await import('../dist/host/build.js')) as any
   assert.deepEqual(parseSchemes(JSON.stringify({ workspace: { schemes: ['App', 'AppTests'] } })), ['App', 'AppTests'])
   assert.deepEqual(parseSchemes(JSON.stringify({ project: { schemes: ['Only'] } })), ['Only'])
   assert.deepEqual(parseSchemes(JSON.stringify({ workspace: { schemes: [] } })), [])
@@ -522,7 +522,7 @@ test('xcodebuild -list output is read as schemes, whatever shape it has', async 
 })
 
 test('a build passes the version as a build setting, never a project edit', async () => {
-  const { buildArgv } = await import('../host/build.js')
+  const { buildArgv } = (await import('../dist/host/build.js')) as any
   const argv = buildArgv({
     kind: 'workspace',
     projectPath: '/repo/ios/App.xcworkspace',
@@ -558,14 +558,14 @@ test('a build passes the version as a build setting, never a project edit', asyn
     ipaPath: '/tmp/a.ipa',
   })
   assert.deepEqual(project.archive.slice(2, 4), ['--project', '/repo/App.xcodeproj'])
-  assert.equal(project.archive.some(flag => flag.startsWith('--xcodebuild-flag=')), false)
+  assert.equal(project.archive.some((flag: any) => flag.startsWith('--xcodebuild-flag=')), false)
 })
 
 test('build readiness names the reason, and iOS is decided by the project file', async () => {
   const { mkdtempSync, mkdirSync, writeFileSync } = await import('node:fs')
   const { join } = await import('node:path')
   const { tmpdir } = await import('node:os')
-  const { createBuild } = await import('../host/build.js')
+  const { createBuild } = (await import('../dist/host/build.js')) as any
 
   const build = createBuild({ get: () => undefined }, normalizeConfig({}), {}, {
     detect: async () => ({ installed: true, path: '/opt/homebrew/bin/asc' }),
@@ -594,7 +594,7 @@ test('build readiness names the reason, and iOS is decided by the project file',
 })
 
 test('readiness reads the blockers from asc validate, not from its stderr', async () => {
-  const { createOps } = await import('../host/ops.js')
+  const { createOps } = (await import('../dist/host/ops.js')) as any
   const ops = createOps({}, normalizeConfig({ defaultAppId: 'app-1' }), {
     run: async () => ({
       exitCode: 1,
@@ -630,12 +630,12 @@ test('readiness reads the blockers from asc validate, not from its stderr', asyn
   assert.match(data.blockers[0].message, /non-editable state/)
   assert.equal(data.blockers[0].detail, 'Use an editable version state before submission')
   assert.equal(data.warnings, 2, 'warnings are counted, not turned into blockers')
-  assert.equal(data.blockers.some((blocker) => blocker.code === 'ASC_FAILED'), false, 'stderr notice is not a blocker')
+  assert.equal(data.blockers.some((blocker: any) => blocker.code === 'ASC_FAILED'), false, 'stderr notice is not a blocker')
 })
 
 test('readiness falls back to a hard error in checks, and to a clean pass', async () => {
-  const { createOps } = await import('../host/ops.js')
-  const make = (json, exitCode) => createOps({}, normalizeConfig({ defaultAppId: 'a' }), {
+  const { createOps } = (await import('../dist/host/ops.js')) as any
+  const make = (json: any, exitCode: number) => createOps({}, normalizeConfig({ defaultAppId: 'a' }), {
     run: async () => ({ exitCode, json, stdout: '', stderr: '' }),
   }, { detect: async () => ({ installed: true, path: '/x' }) })
 
@@ -651,7 +651,7 @@ test('readiness falls back to a hard error in checks, and to a clean pass', asyn
 })
 
 test('release status names the version id, its state and the review state', async () => {
-  const { createOps } = await import('../host/ops.js')
+  const { createOps } = (await import('../dist/host/ops.js')) as any
   const ops = createOps({}, normalizeConfig({ defaultAppId: 'a' }), {
     run: async () => ({
       exitCode: 0,
@@ -674,9 +674,9 @@ test('release status names the version id, its state and the review state', asyn
 })
 
 test('releasing a version is one gated asc call for exactly that version', async () => {
-  const { createOps } = await import('../host/ops.js')
-  const calls = []
-  const record = async (args, options) => {
+  const { createOps } = (await import('../dist/host/ops.js')) as any
+  const calls: any[] = []
+  const record = async (args: any, options: any) => {
     calls.push({ args, options })
     return { exitCode: 0, json: { released: true }, stdout: '', stderr: '' }
   }
@@ -689,11 +689,11 @@ test('releasing a version is one gated asc call for exactly that version', async
   assert.deepEqual(calls[0].args, ['versions', 'release', '--version-id', 'v-9', '--confirm'])
   assert.equal(calls[0].options.path, '/x')
 
-  await assert.rejects(() => ops.publishVersion({}), (error) => error.code === 'INVALID_INPUT')
+  await assert.rejects(() => ops.publishVersion({}), (error: any) => error.code === 'INVALID_INPUT')
 })
 
 test('versions say which build each one carries, and in what state', async () => {
-  const { createOps } = await import('../host/ops.js')
+  const { createOps } = (await import('../dist/host/ops.js')) as any
   const ops = createOps({}, normalizeConfig({ defaultAppId: 'a' }), {
     run: async () => ({
       exitCode: 0,
@@ -726,10 +726,10 @@ test('versions say which build each one carries, and in what state', async () =>
 })
 
 test('distributing to an external group also submits the beta review', async () => {
-  const { createOps } = await import('../host/ops.js')
-  const calls = []
+  const { createOps } = (await import('../dist/host/ops.js')) as any
+  const calls: any[] = []
   const ops = createOps({}, normalizeConfig({ defaultAppId: 'a' }), {
-    must: async (args, options) => {
+    must: async (args: any, options: any) => {
       calls.push({ args, options })
       if (args[0] === 'testflight') {
         return {
@@ -746,7 +746,7 @@ test('distributing to an external group also submits the beta review', async () 
       }
       return { exitCode: 0, json: {}, stdout: '', stderr: '' }
     },
-    run: async (args, options) => {
+    run: async (args: any, options: any) => {
       calls.push({ args, options })
       return { exitCode: 0, json: {}, stdout: '', stderr: '' }
     },
@@ -764,17 +764,17 @@ test('distributing to an external group also submits the beta review', async () 
 })
 
 test('submitting for review creates the version when nobody has', async () => {
-  const { createOps } = await import('../host/ops.js')
-  const calls = []
+  const { createOps } = (await import('../dist/host/ops.js')) as any
+  const calls: any[] = []
   const ops = createOps({}, normalizeConfig({ defaultAppId: 'a' }), {
-    run: async (args, options) => {
+    run: async (args: any, options: any) => {
       calls.push({ args, options })
       if (args[0] === 'versions' && args[1] === 'list') {
         return { exitCode: 0, json: { data: [{ id: 'v-1', attributes: { versionString: '1.2.5' } }] }, stdout: '', stderr: '' }
       }
       return { exitCode: 0, json: {}, stdout: '', stderr: '' }
     },
-    must: async (args, options) => {
+    must: async (args: any, options: any) => {
       calls.push({ args, options })
       return { exitCode: 0, json: {}, stdout: '', stderr: '' }
     },

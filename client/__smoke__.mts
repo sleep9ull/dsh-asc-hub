@@ -10,19 +10,30 @@
  *
  * Run: node client/__smoke__.mjs
  */
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import vm from 'node:vm'
 
 const here = dirname(fileURLToPath(import.meta.url))
-const file = join(here, '..', 'client.js')
+
+/** The repo root, so this works from the source tree and from dist-test/. */
+function repoRoot(start: string): string {
+  let dir = start
+  for (let step = 0; step < 6; step += 1) {
+    if (existsSync(join(dir, 'package.json'))) return dir
+    dir = dirname(dir)
+  }
+  return start
+}
+
+const file = join(repoRoot(here), 'dist', 'client.js')
 const source = readFileSync(file, 'utf8')
 
 let passed = 0
-const failures = []
+const failures: string[] = []
 
-function check(name, condition, extra) {
+function check(name: string, condition: boolean, extra?: unknown): void {
   if (condition) {
     passed += 1
     return
@@ -30,7 +41,7 @@ function check(name, condition, extra) {
   failures.push(name + (extra === undefined ? '' : ': ' + String(extra)))
 }
 
-function deepEqual(a, b) {
+function deepEqual(a: unknown, b: unknown): boolean {
   return JSON.stringify(a) === JSON.stringify(b)
 }
 
@@ -120,7 +131,8 @@ const sandbox = {
   },
   console,
   FileReader: class {
-    readAsText() { this.onerror && this.onerror() }
+    onerror: (() => void) | undefined
+    readAsText(this: any) { if (this.onerror) this.onerror() }
   },
 }
 
@@ -162,7 +174,7 @@ function dictionariesFor(namespace) {
   return entryRegistration ? entryRegistration.dicts.en : {}
 }
 
-let rpcHandler = () => ({ ok: true, value: {} })
+let rpcHandler: (endpoint?: any, payload?: any) => any = () => ({ ok: true, value: {} })
 
 const ctx = {
   locale: {
@@ -311,23 +323,24 @@ check('it sends the chosen build with the confirmation flag', source.includes('c
 check('Build and Distribute are the same length', (source.match(/className: 'asc-hub-actions-fill'/g) || []).length === 4 && source.includes('.asc-hub-actions-fill .asc-hub-btn { flex: 0 0 auto; min-width: 11em; justify-content: center; }'))
 check('the review menu names each build\'s state', source.includes("t('buildReleased')") && source.includes("t('buildInReview')") && source.includes("t('buildNotSubmitted')") && source.includes('optionLabel: menuLabel') && ['buildReleased', 'buildInReview', 'buildNotSubmitted', 'versionShippedTag', 'versionShippedHint'].every(key => typeof en[key] === 'string' && typeof zh[key] === 'string'))
 check('the audience is named (Internal / External), not badged TestFlight', source.includes('h(TestFlightMarks, { t, build })') && !source.includes("'testflightTag'") && source.includes('const tags = (build, pinnedRow)'))
-check('only the pinned row is the release build, and only it says Release', source.includes("pinnedRow\n          ? h('span', { className: 'asc-hub-tf', 'data-audience': 'release' }") && !source.includes('isRelease(build)') && source.includes('tags(build, pinnedRow)'))
-check('a successful send re-reads the list so its tags say so', source.includes("if (typeof onSent === 'function') onSent()") && source.includes('onSent: () => { void store.refreshAll() }'))
+check('only the pinned row is the release build, and only it says Release', /pinnedRow\s*\?\s*h\('span', \{ className: 'asc-hub-tf', 'data-audience': 'release' \}/.test(source) && !source.includes('isRelease(build)') && source.includes('tags(build, pinnedRow)'))
+check('a successful send re-reads the list so its tags say so', /if \(typeof onSent === 'function'\)\s*onSent\(\);/.test(source) && /onSent: \(\) => \{ void store\.refreshAll\(\);/.test(source))
 check('the workbench copy is localized', ['tfBuildLabel', 'tfSent', 'tfNoBuild', 'internalGroup', 'externalGroup', 'releaseTag', 'cannotNoProject', 'cannotNotIos', 'cannotNoXcode', 'cannotUnloadable', 'autoFix', 'autoFixCopied', 'autoFixHint'].every(key => typeof en[key] === 'string' && en[key].length > 2 && typeof zh[key] === 'string' && zh[key].length > 1) && en.latestBuild === undefined && en.justSent === undefined)
 check('distributing is one deliberate action, not a second tick', !source.includes('confirmDistribute') && source.includes('disabled: busy || selected.length === 0') && source.includes('groupIds: selected, confirm: true'))
 check('the beta review path is gone from the panel', !source.includes('submitBeta') && !source.includes('confirmBeta') && !source.includes('betaReview'))
 check('the build step builds the working directory, never a chosen file', source.includes("store.perform('build.create', {") && source.includes('sessionId,') && source.includes('version: chosenVersion.trim()') && source.includes('buildNumber: chosenNumber.trim()') && !source.includes('ipaPath') && !source.includes("'ipaLabel'"))
-const sectionBodies = ['WorkspaceCard', 'BuildsCard', 'TestFlightCard'].map(name => {
-  const start = source.indexOf('function ' + name + '(')
-  return source.slice(start, source.indexOf('\n    }\n', start))
-})
-check('one refresh button re-reads every section', source.includes('refreshAll,') && source.includes('const tick = React.useSyncExternalStore(store.subscribe, () => store.getSnapshot().reload)') && source.includes("onClick: () => { void store.refreshAll() }") && sectionBodies.every(body => !body.includes("t('refresh')")))
+// The panel header owns the refresh label (two uses: aria-label + title). The only
+// other users are the parked Sales/Analytics cards, so the live console passes no
+// per-card reload callback at all.
+const refreshLabels = (source.match(/t\('refresh'\)/g) || []).length
+const consoleRender = (source.match(/asc-hub-console[^\n]*/) || [''])[0]
+check('one refresh button re-reads every section', source.includes('refreshAll,') && /const tick = React\.useSyncExternalStore\(store\.subscribe, \(\) => store\.getSnapshot\(\)\.reload\)/.test(source) && /onClick: \(\) => \{ void store\.refreshAll\(\);/.test(source) && refreshLabels === 4 && !consoleRender.includes('reload:'))
 check('the section is three lines: title, path + git, build tag + reason', source.includes("className: 'asc-hub-workspace-build'") && source.includes("className: 'asc-hub-workspace-git'") && source.includes("'data-state': buildReady ? 'ok' : 'muted'") && source.includes('buildIos') && source.includes('copyPrompt') && !source.includes('asc-hub-workspace-fix'))
 check('the auto-fix prompt is a real request, not a placeholder', source.includes('make this working directory into a codebase that is ready to build') && source.includes('Do not add features') && source.includes('AUTO_FIX_PROMPT'))
 check('the directory says whether it can be built', source.includes("t('buildReady')") && source.includes("t('buildNotReady')") && source.includes("'data-state': buildReady ? 'ok' : 'muted'") && ['buildReady', 'buildNotReady', 'buildNoXcode', 'buildNoProject'].every(key => typeof en[key] === 'string' && typeof zh[key] === 'string'))
 check('version and build number are two separate decisions', source.includes("t('versionLabel')") && source.includes("t('buildNumberLabel')") && source.includes('const chosenVersion = version !==') && source.includes('const chosenNumber = buildNumber !==') && source.includes('Math.max.apply(null, numbers) + 1'))
 check('the build step comes before the list it fills, and distribution after it', source.indexOf('h(BuildCard, {') > 0 && source.indexOf('h(BuildCard, {') < source.indexOf('h(BuildsCard, {') && source.indexOf('h(BuildsCard, {') < source.indexOf('h(TestFlightCard, {'))
-check('only processed builds are listed, so everything listed is ready', source.includes('distributableBuilds(normalizeBuilds(buildsQuery[0].data))') && /function distributableBuilds[\s\S]{0,200}?toUpperCase\(\) === 'VALID'/.test(source))
+check('only processed builds are listed, so everything listed is ready', source.includes('distributableBuilds(normalizeBuilds(buildsQuery[0].data))') && /function distributableBuilds[\s\S]{0,400}?toUpperCase\(\) === 'VALID'/.test(source))
 check('install and sign-in stay ungated', !/engine\.install[\s\S]{0,200}confirm/.test(source) && !/auth\.(?:login|importKey)[\s\S]{0,260}confirm: true/.test(source) && source.includes('disabled: engineReady || busy'))
 // The mode pill is a switch; only it reacts to the mode, never the panel's actions.
 check('only the mode pill reacts to the mode', source.includes("disabled: state.busyAction !== ''") && !source.includes("disabled: mode === 'write'"))
@@ -393,7 +406,7 @@ check('a dead transport marks the page stale, not each card', store.getSnapshot(
 rpcHandler = (endpoint) => ({ ok: true, value: endpoint === 'asc-hub/status' ? { phase: 'ready', label: 'ready', engine: { installed: true, version: '6.5.3' }, auth: { configured: true }, app: null, operation: null, lastError: null } : {} })
 const healed = await store.probe('status')
 check('the first healthy call clears the stale flag', healed.ok === true && store.getSnapshot().hostDown === false)
-check('the banner is one block with the way out, and per-card notes stand down', source.includes("className: 'asc-hub-recovery'") && source.includes("t('reloadPanel')") && /if \(code === 'RPC_FAILED'\) return null/.test(source) && source.includes('location.reload'))
+check('the banner is one block with the way out, and per-card notes stand down', source.includes("className: 'asc-hub-recovery'") && source.includes("t('reloadPanel')") && /if \(code === 'RPC_FAILED'\)\s*return null/.test(source) && source.includes('location.reload'))
 check('the recovery copy is localized in both locales', ['hostDownTitle', 'hostDownBody', 'reloadPanel'].every(key => typeof en[key] === 'string' && en[key].length > 3 && typeof zh[key] === 'string' && zh[key].length > 2 && en[key] !== zh[key]))
 
 /* --------------------------------------------------------------------- *
@@ -690,7 +703,7 @@ check('during step 1 the sign-in card is fully locked', Boolean(signInCard) &&
 check('and it says so with a locked drop row', Boolean(signInCard) && findByType(signInCard, node => node.props && node.props['data-locked'] === 'true').length === 1)
 const installButton = findByType(engineTree, node => node.type === 'button' && collectText(node).includes('Install'))
 check('install step offers a primary install button', installButton.length === 1 && installButton[0].props.className.includes('asc-hub-btn-primary'), installButton.length)
-check('installing is reported under the button, not in the header', source.includes("busy\n              ? h('span', { className: 'asc-hub-step-caption' }, t('installing'))") && !source.includes('className: \'asc-hub-live\''))
+check('installing is reported under the button, not in the header', /busy\s*\?\s*h\('span', \{ className: 'asc-hub-step-caption' \}, t\('installing'\)\)/.test(source) && !source.includes("className: 'asc-hub-live'"))
 check('the header keeps the busy announcement for assistive tech only', /className: 'asc-hub-sr', role: 'status'/.test(source))
 check('the button keeps saying Install while it works', !/@engineReady \? t\('installedLabel'\) : busy/.test(source) && source.includes("engineReady ? t('installedLabel') : t('installAsc')"))
 check('install button is a real button with aria-busy', installButton.length === 1 && installButton[0].props.type === 'button')
@@ -769,7 +782,6 @@ check('a disabled primary action reads as disabled', source.includes('[data-asc-
 check('the submission date is scoped to the selected build\'s version', source.includes("String(releaseData.version || '') === version"))
 check('the shared shell pieces are all still defined', ['LogArea', 'SkillsRow', 'SalesCard', 'AnalyticsCard'].every(name => source.includes('function ' + name + '(')))
 check('the list starts at three builds and grows by three, as grey underlined text', source.includes('const BUILD_PAGE = 3') && source.includes('const PICK_LIMIT = 12') && source.includes('const shown = builds.slice(0, visible)') && source.includes('setVisible(current => current + BUILD_PAGE)') && source.includes('onClick: () => setVisible(BUILD_PAGE)') && source.includes("t('loadMore')") && source.includes("t('showLess')") && (source.match(/asc-hub-link asc-hub-link-quiet/g) || []).length === 3 && source.includes('.asc-hub-link-quiet { color: var(--dsw-alias-label-secondary); }'))
-    && source.includes('.asc-hub-link-quiet { color: var(--dsw-alias-label-secondary); }')
 check('app-scoped cards ask for an app when none is chosen', consoleText.includes('Choose an app above'), consoleText)
 check('console keeps the operation log collapsed', findByType(consoleTree, node => node.type === 'details' && node.props.className === 'asc-hub-log').length === 1)
 check('console has a close control', findByType(consoleTree, node => node.type === 'button' && node.props['aria-label'] === 'Close').length === 1)
@@ -794,7 +806,7 @@ check('the first paint, before any status arrives, renders instead of crashing',
 const titleRegistration = slotRegistrations.find(item => item.options.key === 'dsh-asc-hub' && item.options.name === 'sidebar.right.pane.tab.title')
 const titleTree = titleRegistration.component({ t, locale: ctx.locale })
 check('panel tab title is localized', collectText(titleTree).join('') === 'ASC Hub', collectText(titleTree).join(''))
-check('trigger aria label interpolates the label', t('statusAria', { label: t('label.ready') }).includes('ready'))
+check('trigger aria label interpolates the label', String(t('statusAria', { label: t('label.ready', {}) })).includes('ready'))
 check('guide entry carries localized copy', tabDefinition.guide[0].description() === 'Install the asc engine, sign in with an API key, and ship builds, releases and sales.')
 
 /* --------------------------------------------------------------------- *

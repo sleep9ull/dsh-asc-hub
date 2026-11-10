@@ -9,28 +9,42 @@
 
 import { readFileSync } from 'node:fs'
 
-/** The authored document, shipped in the package's `files` list. */
-const SKILL_URL = new URL('../skills/asc-hub/SKILL.md', import.meta.url)
+import type { HostContext, SkillRegistry } from './types.js'
+import { skillRegistry } from './types.js'
+
+/** The authored document, shipped in the package's `files` list; dist/host/ -> root. */
+const SKILL_URL = new URL('../../skills/asc-hub/SKILL.md', import.meta.url)
 
 /** A skill name the registry accepts: lowercase kebab-case. */
 const SKILL_NAME = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
+
+/** The parsed document, before the registry adds its `source`. */
+export interface SkillDocument {
+  name: string
+  description: string
+  whenToUse?: string
+  content: string
+}
+
+/** The parsed frontmatter fields plus the instruction body. */
+export interface ParsedSkillDocument {
+  fields: Record<string, string>
+  content: string
+}
 
 /**
  * Split a `SKILL.md` document into its frontmatter fields and instruction body.
  * The frontmatter this project writes is a flat `key: value` block, so a full
  * YAML parser would be a dependency for nothing.
- * @param {string} source raw document
- * @returns {{ fields: Record<string, string>, content: string }}
  */
-export function parseSkillDocument(source) {
+export function parseSkillDocument(source: string): ParsedSkillDocument {
   const text = String(source)
   if (!text.startsWith('---')) return { fields: {}, content: text.trim() }
   const end = text.indexOf('\n---', 3)
   if (end === -1) return { fields: {}, content: text.trim() }
   const head = text.slice(3, end)
   const body = text.slice(end + 4).replace(/^\r?\n/, '')
-  /** @type {Record<string, string>} */
-  const fields = {}
+  const fields: Record<string, string> = {}
   for (const line of head.split(/\r?\n/)) {
     const match = /^([A-Za-z][\w-]*):\s*(.*)$/.exec(line.trim())
     if (match === null) continue
@@ -44,35 +58,32 @@ export function parseSkillDocument(source) {
 /**
  * Read and parse the shipped skill. Throws when the package is incomplete, which
  * the caller treats as "no skill" rather than a plugin failure.
- * @returns {{ name: string, description: string, whenToUse?: string, content: string }}
  */
-export function readSkill() {
+export function readSkill(): SkillDocument {
   const { fields, content } = parseSkillDocument(readFileSync(SKILL_URL, 'utf8'))
   const name = typeof fields.name === 'string' && SKILL_NAME.test(fields.name) ? fields.name : 'asc-hub'
   const description = typeof fields.description === 'string' && fields.description.length > 0
     ? fields.description
     : 'Ship an iOS app through App Store Connect with the asc_hub tool.'
-  /** @type {{ name: string, description: string, whenToUse?: string, content: string }} */
-  const skill = { name, description, content }
+  const skill: SkillDocument = { name, description, content }
   if (typeof fields.whenToUse === 'string' && fields.whenToUse.length > 0) skill.whenToUse = fields.whenToUse
   return skill
 }
 
 /**
  * Register the shipped skill with the registry service, when one is mounted.
- * @param {{ get: (name: string) => any, logger?: any }} ctx Host context
- * @returns {boolean} whether a registration happened
+ * @returns whether a registration happened
  */
-export function registerSkill(ctx) {
-  let skills = null
+export function registerSkill(ctx: HostContext): boolean {
+  let skills: SkillRegistry | undefined
   try {
-    skills = ctx.get('skills')
+    skills = skillRegistry(ctx)
   } catch {
-    skills = null
+    skills = undefined
   }
-  if (skills === null || skills === undefined || typeof skills.register !== 'function') return false
+  if (skills === undefined) return false
 
-  let definition = null
+  let definition: SkillDocument
   try {
     definition = readSkill()
   } catch (error) {
@@ -81,7 +92,8 @@ export function registerSkill(ctx) {
   }
 
   try {
-    ctx.effect(() => skills.register({ ...definition, source: 'dsh-asc-hub' }), 'asc-hub: model skill')
+    const registry = skills
+    ctx.effect(() => registry.register({ ...definition, source: 'dsh-asc-hub' }), 'asc-hub: model skill')
     return true
   } catch (error) {
     ctx.logger?.warn?.(`asc-hub: skill registration refused (${error instanceof Error ? error.message : String(error)})`)

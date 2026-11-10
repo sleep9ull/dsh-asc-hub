@@ -195,3 +195,9 @@ Host answers `MANUAL_UPDATE_REQUIRED`, because installation belongs to the Plugi
 holds the profile lock, the selection and the rollback. `status.update` is currently a constant
 `{ available: false }`: the footer tag lights only for a host-side answer, and the authoritative
 "update available" lives in **Plugins → Installed**.
+
+## Build output
+
+The published tarball ships `dist/` (built by `prepare`), never `src/`. `prepublishOnly` runs
+`npm run verify` — both `tsc` projects, the host tests and the client smoke harness — so a publish
+cannot leave a stale or broken build behind. `files` lists `dist`, not `src`.

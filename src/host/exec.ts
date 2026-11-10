@@ -15,9 +15,25 @@ import { spawn as nodeSpawn } from 'node:child_process'
 import { existsSync, accessSync, constants } from 'node:fs'
 import { delimiter, isAbsolute, join } from 'node:path'
 
+import type {
+  ExecResult,
+  FlagConfig,
+  EnvConfig,
+  HostContext,
+  ProcessRequest,
+  SubprocessOutcome,
+} from './types.js'
+import { subprocessService } from './types.js'
+
+/** Whether one call may carry asc's read-only kill switch. */
+export interface FlagOptions {
+  local?: boolean
+  forceReadOnly?: boolean
+}
+
 /** Global flags that must precede the subcommand. */
-export function globalFlags(config, options = {}) {
-  const flags = []
+export function globalFlags(config: FlagConfig, options: FlagOptions = {}): string[] {
+  const flags: string[] = []
   if (config.profile) flags.push('--profile', config.profile)
   // `--read-only` is asc's data-plane kill switch. Plumb-only commands (auth,
   // version) must not receive it: asc would refuse to store a credential, which
@@ -28,9 +44,12 @@ export function globalFlags(config, options = {}) {
 }
 
 /** Child environment: scrubbed parent plus the plugin's explicit switches. */
-export function childEnv(config, extra, options = {}) {
-  /** @type {Record<string, string>} */
-  const env = {}
+export function childEnv(
+  config: EnvConfig,
+  extra?: Record<string, string>,
+  options: FlagOptions = {},
+): Record<string, string> {
+  const env: Record<string, string> = {}
   for (const [key, value] of Object.entries(process.env)) {
     if (typeof value === 'string') env[key] = value
   }
@@ -51,7 +70,7 @@ export function childEnv(config, extra, options = {}) {
   return env
 }
 
-function lookupOnPath(command) {
+function lookupOnPath(command: string): string | undefined {
   const path = process.env.PATH ?? ''
   for (const directory of path.split(delimiter)) {
     if (directory === '') continue
@@ -68,12 +87,14 @@ function lookupOnPath(command) {
 
 /**
  * Resolve one executable to an absolute path.
- * @param {any} ctx Host context
- * @param {string} command bare name or absolute path
- * @returns {Promise<string | undefined>}
+ * @param ctx Host context
+ * @param command bare name or absolute path
  */
-export async function resolveExecutable(ctx, command) {
-  const subprocess = ctx.get?.('subprocess')
+export async function resolveExecutable(
+  ctx: HostContext,
+  command: string,
+): Promise<string | undefined> {
+  const subprocess = subprocessService(ctx)
   if (subprocess && typeof subprocess.resolveExecutable === 'function') {
     try {
       return await subprocess.resolveExecutable(command)
@@ -85,12 +106,15 @@ export async function resolveExecutable(ctx, command) {
   return lookupOnPath(command)
 }
 
-function linkSignals(callerSignal, timeoutMs) {
+function linkSignals(
+  callerSignal: AbortSignal | undefined,
+  timeoutMs: number,
+): { signal: AbortSignal; release: () => void } {
   const controller = new AbortController()
-  let timer
+  let timer: NodeJS.Timeout | undefined
   if (Number.isInteger(timeoutMs) && timeoutMs > 0) {
     timer = setTimeout(() => controller.abort(new Error('timeout')), timeoutMs)
-    timer.unref?.()
+    timer.unref()
   }
   const forward = () => controller.abort(callerSignal?.reason)
   if (callerSignal) {
@@ -107,21 +131,14 @@ function linkSignals(callerSignal, timeoutMs) {
 /**
  * Run one prepared invocation.
  *
- * @param {any} ctx Host context
- * @param {object} request
- * @param {readonly string[]} request.argv executable plus arguments
- * @param {string} request.cwd
- * @param {number} request.timeoutMs
- * @param {number} request.maxBytes
- * @param {Record<string,string>} request.env
- * @param {AbortSignal | undefined} request.signal
- * @returns {Promise<{exitCode:number|null, signalName:string|null, stdout:string, stderr:string, timedOut:boolean, aborted:boolean, durationMs:number}>}
+ * @param ctx Host context
+ * @param request executable plus arguments, deadline, bounds and environment
  */
-export async function runProcess(ctx, request) {
+export async function runProcess(ctx: HostContext, request: ProcessRequest): Promise<ExecResult> {
   const { argv, cwd, timeoutMs, maxBytes, env, signal: callerSignal } = request
   const started = Date.now()
   const { signal, release } = linkSignals(callerSignal, timeoutMs)
-  const subprocess = ctx.get?.('subprocess')
+  const subprocess = subprocessService(ctx)
 
   try {
     if (subprocess && typeof subprocess.spawn === 'function') {
@@ -138,8 +155,7 @@ export async function runProcess(ctx, request) {
         env,
       })
       let timedOut = false
-      /** @type {{exitCode:number|null, signal:string|null}} */
-      let outcome = { exitCode: null, signal: null }
+      let outcome: SubprocessOutcome = { exitCode: null, signal: null }
       try {
         outcome = await handle.done
       } catch {
@@ -159,7 +175,7 @@ export async function runProcess(ctx, request) {
       }
     }
 
-    return await new Promise((resolve) => {
+    return await new Promise<ExecResult>((resolve) => {
       let settled = false
       let stdout = ''
       let stderr = ''
@@ -170,17 +186,17 @@ export async function runProcess(ctx, request) {
         env,
         stdio: ['ignore', 'pipe', 'pipe'],
       })
-      const take = (chunk) => {
+      const take = (chunk: Buffer) => {
         const text = chunk.toString('utf8')
         return text.length > maxBytes ? text.slice(0, maxBytes) : text
       }
-      child.stdout?.on('data', (chunk) => {
+      child.stdout?.on('data', (chunk: Buffer) => {
         if (stdout.length < maxBytes) stdout += take(chunk)
       })
-      child.stderr?.on('data', (chunk) => {
+      child.stderr?.on('data', (chunk: Buffer) => {
         if (stderr.length < maxBytes) stderr += take(chunk)
       })
-      const finish = (exitCode, signalName) => {
+      const finish = (exitCode: number | null, signalName: string | null) => {
         if (settled) return
         settled = true
         release()
@@ -200,7 +216,7 @@ export async function runProcess(ctx, request) {
         else timedOut = true
         child.kill('SIGTERM')
         const hard = setTimeout(() => child.kill('SIGKILL'), 3_000)
-        hard.unref?.()
+        hard.unref()
       }
       if (signal.aborted) onAbort()
       else signal.addEventListener('abort', onAbort, { once: true })

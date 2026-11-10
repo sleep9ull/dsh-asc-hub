@@ -7,7 +7,8 @@
  * do not type-check fall back to the safe default instead of throwing at load.
  */
 
-/** @typedef {'read-only' | 'write'} AscMode */
+import type { AscMode, HubConfig } from './types.js'
+import { isRecord } from './types.js'
 
 export const DEFAULTS = Object.freeze({
   ascPath: 'asc',
@@ -23,25 +24,27 @@ export const DEFAULTS = Object.freeze({
   vendorNumber: null,
 })
 
-function string(value, fallback) {
+function string(value: unknown, fallback: string): string
+function string(value: unknown, fallback: null): string | null
+function string(value: unknown, fallback: string | null): string | null {
   return typeof value === 'string' && value.trim() !== '' ? value.trim() : fallback
 }
 
-function bool(value, fallback) {
+function bool(value: unknown, fallback: boolean): boolean {
   return typeof value === 'boolean' ? value : fallback
 }
 
-function positiveInt(value, fallback) {
-  return Number.isInteger(value) && value > 0 ? value : fallback
+function positiveInt(value: unknown, fallback: number): number {
+  return typeof value === 'number' && Number.isInteger(value) && value > 0 ? value : fallback
 }
 
 /**
  * Normalize the Loader row's raw config into a complete, frozen config object.
- * @param {unknown} raw the row's `config` value.
+ * @param raw the row's `config` value.
  */
-export function normalizeConfig(raw) {
-  const input = raw !== null && typeof raw === 'object' ? raw : {}
-  const mode = input.mode === 'write' ? 'write' : 'read-only'
+export function normalizeConfig(raw: unknown): HubConfig {
+  const input = isRecord(raw) ? raw : {}
+  const mode: AscMode = input.mode === 'write' ? 'write' : 'read-only'
   return Object.freeze({
     ascPath: string(input.ascPath, DEFAULTS.ascPath),
     profile: string(input.profile, DEFAULTS.profile),
@@ -58,6 +61,6 @@ export function normalizeConfig(raw) {
 }
 
 /** Whether this config permits mutating actions at all. */
-export function allowsWrites(config) {
+export function allowsWrites(config: HubConfig): boolean {
   return config.mode === 'write'
 }

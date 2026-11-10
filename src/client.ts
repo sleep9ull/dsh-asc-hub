@@ -1,8 +1,259 @@
+/* ------------------------------------------------------------------ *
+ * Types
+ * The Client half is a browser script, not a module: the Harness module
+ * loader calls the factory with a `require` table that holds react and
+ * nothing else, so there is no import or export anywhere below. The
+ * declarations here describe exactly what that table provides, what the
+ * Fetch bridge answers, and what each card reads out of it.
+ * ------------------------------------------------------------------ */
+
+/** Anything React can render. Every node in this file comes from h(). */
+type Child = unknown
+
+/** The props h() accepts: the DOM-ish attribute set this panel actually uses. */
+type ElementProps = {
+  [key: string]: unknown
+  children?: Child
+  className?: string
+  key?: string | number
+  ref?: { current: unknown }
+  id?: string
+  role?: string
+  title?: string
+  href?: string
+  target?: string
+  rel?: string
+  type?: string
+  value?: string
+  checked?: boolean
+  disabled?: boolean
+  placeholder?: string
+  accept?: string
+  autoComplete?: string
+  spellCheck?: boolean
+  tabIndex?: number
+  inputMode?: string
+  onClick?: () => void
+  onChange?: (event: ChangeEvent) => void
+  onDragOver?: (event: DragEventLike) => void
+  onDragLeave?: (event: DragEventLike) => void
+  onDrop?: (event: DragEventLike) => void
+}
+
+/** The part of a change event the panel reads: the field it landed on. */
+type ChangeEvent = { target: { value: string; checked: boolean; files: FileList } }
+
+/** The part of a drag event the panel reads: stop the browser, take the file. */
+type DragEventLike = { preventDefault(): void; dataTransfer: { files: FileList } | null }
+
+/** What h() returns. React keeps children in props; the type keeps both. */
+type VNode = { type: unknown; props: ElementProps; children: Child[] }
+
+/** A renderable component: props in, a child out. */
+type Component<P extends object> = (props: P) => Child
+
+/** React.createElement, in the two call shapes this file uses. */
+interface CreateElement {
+  (type: string, props?: ElementProps | null, ...children: Child[]): VNode
+  <P extends object>(type: Component<P>, props?: P | null, ...children: Child[]): VNode
+}
+
+type SetState<T> = (next: T | ((prev: T) => T)) => void
+
+/** The react module behind the loader's require table: five hooks and a factory. */
+type ReactModule = {
+  createElement: CreateElement
+  useState<T>(initial: T | (() => T)): [T, SetState<T>]
+  useEffect(effect: () => void | (() => void), deps?: readonly unknown[]): void
+  useRef<T>(initial: T): { current: T }
+  useCallback<T>(fn: T, deps?: readonly unknown[]): T
+  useSyncExternalStore<T>(subscribe: (onStoreChange: () => void) => () => void, getSnapshot: () => T): T
+}
+
+/** One translated string. `t` is ctx.locale.bind('asc-hub'). */
+type Translate = (key: string, params?: Record<string, unknown>) => string
+
+/* ---- the wire ---------------------------------------------------- */
+
+/** The Host answers with JSON objects; each card narrows the fields it needs. */
+type JsonData = { [key: string]: unknown }
+
+/** The error half of the wire, before it is normalised. */
+type WireErrorLike = { code?: unknown; message?: unknown; detail?: unknown; details?: { text?: unknown; detail?: unknown } | null }
+
+/** What ctx.connection.rpc.call resolves to. */
+type WireReply = { ok?: unknown; value?: unknown; error?: WireErrorLike | null } | null | undefined
+
+/** A normalised failure: the code, its message and the redacted detail. */
+type HubError = { code: string; message: string; detail: string }
+
+/** A failed call, with the unwrapping already done. */
+type ProbeFailure = { ok: false; error: HubError }
+/** A successful call whose payload has been unwrapped. */
+type ProbeSuccess = { ok: true; data: JsonData | null }
+/** The result envelope every read travels in. */
+type ProbeResult = ProbeSuccess | ProbeFailure
+/** A raw call: the payload is still wrapped in the Host's envelope. */
+type CallResult = { ok: true; value: JsonData | null } | { ok: false; error: HubError }
+/** One read, as the store exposes it. */
+type Probe = (action: string, input?: unknown, signal?: AbortSignal) => Promise<ProbeResult>
+
+/* ---- the inputs the panel sends ----------------------------------- */
+
+/** `sales.summary`: the app, the period, and the two optional scopes. */
+type SalesInput = { appId: string; period: string; date?: string; vendorNumber?: string }
+/** `testflight.distribute`: the build and the groups it is sent to. */
+type DistributeInput = { appId: string; buildId: string; groupIds: string[]; confirm: boolean; whatsNew?: string }
+/** `release.submit`: the build under review, and the version it belongs to. */
+type SubmitInput = { appId: string; buildId: string; confirm: boolean; version?: string }
+
+/* ---- what the Host reports --------------------------------------- */
+
+type EngineInfo = { installed?: boolean; path?: string; version?: string; source?: string; brew?: { installed?: boolean } | null }
+type AuthInfo = { configured?: boolean; profiles?: Array<{ name?: string; keyId?: string }>; activeProfile?: string | null; storage?: string }
+type HubInfo = { version?: string }
+type UpdateInfo = { available?: boolean; scope?: unknown; latest?: unknown }
+type SkillsInfo = { installed?: boolean; update?: boolean; count?: number; ref?: string; installedAt?: string; root?: string }
+type HubState = {
+  phase?: string
+  label?: string
+  mode?: string
+  config?: { mode?: string }
+  engine?: EngineInfo | null
+  auth?: AuthInfo | null
+  hub?: HubInfo | null
+  update?: UpdateInfo | null
+  skills?: SkillsInfo | null
+  operation?: { kind?: string } | null
+  lastError?: unknown
+  app?: unknown
+}
+
+type AppInfo = { id: string; name?: unknown; bundleId?: unknown }
+type BuildInfo = {
+  id: string
+  version?: string
+  buildNumber?: string
+  processingState?: string
+  expired?: boolean
+  internal?: boolean
+  external?: boolean
+  uploadedDate?: string
+}
+type GroupInfo = { id: string; name?: unknown; testerCount?: number }
+type WorkspaceBuild = { ready?: boolean; ios?: boolean; reason?: string; name?: unknown }
+type WorkspaceInfo = {
+  display?: string
+  cwd?: string
+  branch?: string
+  upstream?: string
+  worktree?: boolean
+  ahead?: number
+  behind?: number
+  changed?: number
+  untracked?: number
+  clean?: boolean
+  build?: WorkspaceBuild | null
+}
+type SalesRow = { date?: unknown; day?: unknown; units?: unknown; proceeds?: unknown; currency?: unknown }
+type SalesTotals = { units?: unknown; proceeds?: unknown }
+type BlockerInfo = { code?: unknown; message?: unknown; detail?: unknown }
+type VersionEntry = { buildId?: unknown; version?: unknown; state?: unknown }
+
+/* ---- store and query --------------------------------------------- */
+
+type LogEntry = { id: number; action: string; text: string }
+type StoreState = {
+  status: HubState | null
+  statusError: HubError | null
+  hostDown: boolean
+  loading: boolean
+  label: string
+  busyAction: string
+  actionError: HubError | null
+  log: LogEntry[]
+  reload: number
+}
+
+type Store = {
+  subscribe(listener: () => void): () => void
+  getSnapshot(): StoreState
+  refresh(): Promise<HubState | null>
+  refreshAll(): Promise<HubState | null>
+  probe: Probe
+  perform(action: string, input?: unknown): Promise<ProbeResult>
+}
+
+/** The .p8 the person dropped on the key row: the name to show, the PEM to send. */
+type KeyFile = { name: string; text: string }
+
+/** One read, and the way to run it again. */
+type QueryState = { loading: boolean; data: JsonData | null; error: HubError | null }
+type QueryResult = [QueryState, () => void]
+
+/* ---- the tab the panel is rendered in ---------------------------- */
+
+type TabActions = {
+  close?: () => void
+  bindCommands?: (commands: Record<string, () => void>) => void | (() => void)
+}
+type TabInfo = {
+  tab?: { id?: string; kind?: string; visible?: boolean; actions?: TabActions | null } | null
+} | null
+
+/* ---- the Cordis services the plugin is applied to ---------------- */
+
+type LocaleService = {
+  bind(namespace: string): Translate
+  register(namespace: string, dicts: { en: Record<string, string>; zh: Record<string, string> }): () => void
+  subscribe(listener: () => void): () => void
+  getLocale(): unknown
+}
+
+type TabGuideEntry = { id: string; order: number; title(): string; description(): string }
+type TabDefinition = { id: string; kind: string; title(): string; keepMounted?: boolean; guide?: TabGuideEntry[] }
+
+type SlotOptions = {
+  [key: string]: unknown
+  name?: string
+  key?: string
+  id?: string
+  order?: number
+  locale?: string
+  inject?: () => unknown
+}
+
+type ClientContext = {
+  connection: {
+    rpc: { call(channel: string, endpoint: string, payload: unknown, signal?: AbortSignal): Promise<WireReply> }
+    generation?: { subscribe(callback: () => void): unknown }
+  }
+  locale: LocaleService
+  slots: {
+    inject(key: string, callback: () => unknown, label: string): unknown
+    register(options: SlotOptions, component: (props: never) => unknown): unknown
+  }
+  sidebarRight: { openTab(kind: string): void; isExpanded?(): boolean; toggleExpanded(): void }
+  sidebarRightTabs: { register(definition: TabDefinition): unknown }
+  effect(callback: () => unknown, label: string): unknown
+}
+
+/** The definition window.__ModuleLoader__.load takes. */
+type ModuleDefinition = {
+  id: string
+  factory(require: (id: 'react') => ReactModule): { inject: readonly string[]; apply(ctx: ClientContext): void }
+}
+
+/** The loader hangs one table off the page: it is not part of Window. */
+interface Window {
+  __ModuleLoader__: { load(definition: ModuleDefinition): void }
+}
+
 window.__ModuleLoader__.load({
   id: 'dsh-asc-hub',
   factory(require) {
     const React = require('react')
-    const h = React.createElement
+    const h: CreateElement = React.createElement
 
     /* ------------------------------------------------------------------ *
      * Constants
@@ -24,8 +275,8 @@ window.__ModuleLoader__.load({
     const ONBOARDED_KEY = 'dsh-asc-hub:onboarded'
     // Storage is best-effort: the browser keeps it across refreshes, and a process that
     // forbids storage still remembers the click for as long as it runs.
-    const onboardingMemory = new Map()
-    function readOnboarded() {
+    const onboardingMemory = new Map<string, string>()
+    function readOnboarded(): boolean {
       try {
         const stored = globalThis.localStorage?.getItem(ONBOARDED_KEY)
         if (typeof stored === 'string') return stored === '1'
@@ -34,7 +285,7 @@ window.__ModuleLoader__.load({
       }
       return onboardingMemory.get(ONBOARDED_KEY) === '1'
     }
-    function markOnboarded() {
+    function markOnboarded(): void {
       onboardingMemory.set(ONBOARDED_KEY, '1')
       try {
         globalThis.localStorage?.setItem(ONBOARDED_KEY, '1')
@@ -42,7 +293,7 @@ window.__ModuleLoader__.load({
         // Storage can be unavailable; the in-memory flag still carries this session.
       }
     }
-    const LABELS = new Set(['start', 'engine', 'login', 'ready', 'build', 'review', 'error'])
+    const LABELS: Set<string> = new Set(['start', 'engine', 'login', 'ready', 'build', 'review', 'error'])
 
     /* ------------------------------------------------------------------ *
      * Locale dictionaries (both baseline locales are required)
@@ -50,7 +301,7 @@ window.__ModuleLoader__.load({
 
     // One bilingual table keeps both baseline locales in lockstep: one line per
     // key, English first. The locale service still receives two dictionaries.
-    const TEXT = {
+    const TEXT: Record<string, [string, string]> = {
       'tabTitle': ['ASC Hub', 'ASC 控制台'],
       'tabDescription': ['Install the asc engine, sign in with an API key, and ship builds, releases and sales.', '安装 asc 引擎、用 API 密钥登录，并发布构建、版本与销售数据。'],
       'title': ['ASC HUB (App Store Connect)', 'ASC HUB（App Store Connect）'],
@@ -197,7 +448,6 @@ window.__ModuleLoader__.load({
       'loadMore': ['Load more', '加载更多'],
       'showLess': ['Show less', '收起'],
       'buildsTitle': ['Builds', '构建'],
-      'buildReady': ['Ready', '可分发'],
       'buildProcessing': ['Processing', '处理中'],
       'buildInvalid': ['Failed', '失败'],
       'buildExpired': ['Expired', '已过期'],
@@ -290,8 +540,8 @@ window.__ModuleLoader__.load({
       'logTitle': ['Last operation log', '最近操作日志'],
       'logEmpty': ['No operations yet.', '暂无操作。'],
     }
-    const en = {}
-    const zh = {}
+    const en: Record<string, string> = {}
+    const zh: Record<string, string> = {}
     for (const [key, pair] of Object.entries(TEXT)) { en[key] = pair[0]; zh[key] = pair[1] }
 
     /* ------------------------------------------------------------------ *
@@ -622,13 +872,13 @@ window.__ModuleLoader__.load({
      * answer is unwrapped as well so both contract revisions work.
      * ------------------------------------------------------------------ */
 
-    async function callHost(ctx, action, input, signal) {
+    async function callHost(ctx: ClientContext, action: string, input: unknown, signal?: AbortSignal): Promise<CallResult> {
       const payload = input === undefined ? { action } : { action, input }
       try {
         const result = await ctx.connection.rpc.call('/api', 'asc-hub/' + action, payload, signal)
         if (!result || result.ok !== true) {
-          const error = result && result.error && typeof result.error === 'object' ? result.error : {}
-          const details = error.details && typeof error.details === 'object' ? error.details : {}
+          const error: WireErrorLike = result && result.error && typeof result.error === 'object' ? result.error : {}
+          const details: { text?: unknown; detail?: unknown } = error.details && typeof error.details === 'object' ? error.details : {}
           return {
             ok: false,
             error: {
@@ -638,16 +888,17 @@ window.__ModuleLoader__.load({
             },
           }
         }
-        return { ok: true, value: result.value }
+        return { ok: true, value: result.value as JsonData | null }
       } catch (error) {
-        return { ok: false, error: { code: 'RPC_FAILED', message: error && error.message ? String(error.message) : '', detail: '' } }
+        const failure = error as { message?: unknown } | null
+        return { ok: false, error: { code: 'RPC_FAILED', message: failure && failure.message ? String(failure.message) : '', detail: '' } }
       }
     }
 
-    function unwrapEnvelope(value) {
+    function unwrapEnvelope(value: JsonData | null): ProbeResult {
       if (value && typeof value === 'object' && typeof value.ok === 'boolean' && Object.prototype.hasOwnProperty.call(value, 'action')) {
         if (value.ok === false) {
-          const error = value.error && typeof value.error === 'object' ? value.error : {}
+          const error: WireErrorLike = value.error && typeof value.error === 'object' ? value.error : {}
           return {
             ok: false,
             error: {
@@ -659,12 +910,12 @@ window.__ModuleLoader__.load({
             },
           }
         }
-        return { ok: true, data: value.data }
+        return { ok: true, data: value.data as JsonData | null }
       }
-      return { ok: true, data: value }
+      return { ok: true, data: value as JsonData | null }
     }
 
-    function errorDetail(error) {
+    function errorDetail(error: WireErrorLike | null | undefined): string {
       if (!error) return ''
       if (typeof error.detail === 'string' && error.detail) return error.detail
       if (typeof error.message === 'string' && error.message) return error.message
@@ -678,9 +929,9 @@ window.__ModuleLoader__.load({
 
     // Everything before onboarding finishes reads "start"; the phase still
     // distinguishes engine from login so the body can show the right step.
-    const PHASE_LABEL = { start: 'start', engine: 'start', login: 'start', ready: 'ready', error: 'error' }
+    const PHASE_LABEL: Record<string, string> = { start: 'start', engine: 'start', login: 'start', ready: 'ready', error: 'error' }
 
-    function deriveLabel(status) {
+    function deriveLabel(status: HubState | null): string {
       if (!status || typeof status !== 'object') return 'start'
       if (typeof status.label === 'string' && LABELS.has(status.label)) return status.label
       const phase = typeof status.phase === 'string' ? status.phase : ''
@@ -692,8 +943,8 @@ window.__ModuleLoader__.load({
       return status.lastError ? 'error' : 'start'
     }
 
-    function createStore(ctx) {
-      let state = {
+    function createStore(ctx: ClientContext): Store {
+      let state: StoreState = {
         status: null,
         statusError: null,
         hostDown: false,
@@ -706,21 +957,21 @@ window.__ModuleLoader__.load({
         // click re-reads every section instead of each card owning its own button.
         reload: 0,
       }
-      let inflight = null
+      let inflight: Promise<HubState | null> | null = null
       let counter = 0
-      const listeners = new Set()
+      const listeners = new Set<() => void>()
 
-      const emit = patch => {
+      const emit = (patch: Partial<StoreState>): void => {
         state = Object.assign({}, state, patch)
         for (const listener of Array.from(listeners)) listener()
       }
-      const subscribe = listener => {
+      const subscribe = (listener: () => void): (() => void) => {
         listeners.add(listener)
         return () => { listeners.delete(listener) }
       }
       const getSnapshot = () => state
 
-      const pushLog = (action, text) => {
+      const pushLog = (action: string, text: unknown): void => {
         if (typeof text !== 'string' || !text) return
         counter += 1
         emit({ log: [{ id: counter, action, text }, ...state.log].slice(0, 4) })
@@ -729,12 +980,12 @@ window.__ModuleLoader__.load({
       // A transport failure is almost always the Host half being swapped (plugin
       // install/update, HMR). One short retry covers that gap; if it is still gone the
       // page is stale, so the panel says so once and offers a reload.
-      const isTransport = error => !!error && error.code === 'RPC_FAILED'
-      const wait = ms => new Promise(resolve => {
+      const isTransport = (error: HubError | null | undefined): boolean => !!error && error.code === 'RPC_FAILED'
+      const wait = (ms: number): Promise<void> => new Promise(resolve => {
         if (typeof globalThis.setTimeout !== 'function') { resolve(); return }
         globalThis.setTimeout(resolve, ms)
       })
-      const probe = async (action, input, signal) => {
+      const probe: Probe = async (action, input, signal) => {
         let reply = await callHost(ctx, action, input, signal)
         if (!reply.ok && isTransport(reply.error) && !(signal && signal.aborted)) {
           await wait(600)
@@ -751,12 +1002,12 @@ window.__ModuleLoader__.load({
         return refresh()
       }
 
-      const refresh = () => {
+      const refresh = (): Promise<HubState | null> => {
         if (inflight) return inflight
         const run = (async () => {
           const result = await probe('status')
           if (result.ok) {
-            const data = result.data && typeof result.data === 'object' ? result.data : null
+            const data = result.data && typeof result.data === 'object' ? result.data as HubState : null
             state = Object.assign({}, state, { status: data, statusError: null, loading: false, label: deriveLabel(data) })
             for (const listener of Array.from(listeners)) listener()
             return data
@@ -770,7 +1021,7 @@ window.__ModuleLoader__.load({
         return run
       }
 
-      const perform = async (action, input) => {
+      const perform = async (action: string, input?: unknown): Promise<ProbeResult> => {
         emit({ busyAction: action, actionError: null })
         const result = await probe(action, input)
         if (!result.ok) pushLog(action, errorDetail(result.error))
@@ -787,20 +1038,20 @@ window.__ModuleLoader__.load({
      * Small helpers
      * ------------------------------------------------------------------ */
 
-    function useLocaleTick(locale) {
-      const subscribe = React.useCallback(listener => locale.subscribe(listener), [locale])
+    function useLocaleTick(locale: LocaleService): void {
+      const subscribe = React.useCallback((listener: () => void) => locale.subscribe(listener), [locale])
       const getSnapshot = React.useCallback(() => locale.getLocale(), [locale])
       React.useSyncExternalStore(subscribe, getSnapshot)
     }
 
-    function errorText(t, code) {
+    function errorText(t: Translate, code: string): string {
       if (typeof code !== 'string' || !code) return t('errorUnknown')
       const key = 'error.' + code
       const text = t(key)
       return text === key ? t('errorUnknown') : text
     }
 
-    function readStored(key) {
+    function readStored(key: string): string {
       try {
         if (typeof window === 'undefined' || !window.localStorage) return ''
         const value = window.localStorage.getItem(key)
@@ -808,7 +1059,7 @@ window.__ModuleLoader__.load({
       } catch (error) { return '' }
     }
 
-    function writeStored(key, value) {
+    function writeStored(key: string, value: string): void {
       try {
         if (typeof window === 'undefined' || !window.localStorage) return
         if (value) window.localStorage.setItem(key, value)
@@ -816,17 +1067,17 @@ window.__ModuleLoader__.load({
       } catch (error) { /* storage may be unavailable; selection stays in memory */ }
     }
 
-    function shortId(value) {
+    function shortId(value: unknown): string {
       if (typeof value !== 'string' || !value) return ''
       return value.length <= 4 ? value : '…' + value.slice(-4)
     }
 
-    function formatDate(value) {
+    function formatDate(value: unknown): string {
       return typeof value === 'string' && value.length >= 10 ? value.slice(0, 10) : ''
     }
 
     /** A build reads the way Xcode names it: marketing version, build in brackets. */
-    function buildLabel(build) {
+    function buildLabel(build: BuildInfo | null): string {
       const version = build && build.version !== undefined && build.version !== '' ? String(build.version) : ''
       const number = build && build.buildNumber !== undefined && build.buildNumber !== '' ? String(build.buildNumber) : ''
       if (version && number) return version + ' (' + number + ')'
@@ -834,7 +1085,7 @@ window.__ModuleLoader__.load({
     }
 
     /** Apple's processing states are enums; say them in words instead. */
-    function processingLabel(t, value) {
+    function processingLabel(t: Translate, value: unknown): string {
       const text = typeof value === 'string' ? value.toUpperCase() : ''
       if (!text) return t('unknown')
       if (text.includes('EXPIRED')) return t('buildExpired')
@@ -844,7 +1095,7 @@ window.__ModuleLoader__.load({
       return text
     }
 
-    function chipState(value) {
+    function chipState(value: unknown): string {
       const text = typeof value === 'string' ? value.toUpperCase() : ''
       if (!text) return 'idle'
       if (/REJECT|FAIL|INVALID|ERROR|EXPIRED/.test(text)) return 'error'
@@ -853,20 +1104,20 @@ window.__ModuleLoader__.load({
       return 'idle'
     }
 
-    function normalizeApps(data) {
-      return data && Array.isArray(data.apps) ? data.apps.filter(app => app && typeof app.id === 'string') : []
+    function normalizeApps(data: JsonData | null): AppInfo[] {
+      return data && Array.isArray(data.apps) ? (data.apps as AppInfo[]).filter(app => app && typeof app.id === 'string') : []
     }
 
-    function normalizeBuilds(data) {
-      return data && Array.isArray(data.builds) ? data.builds.filter(build => build && typeof build.id === 'string') : []
+    function normalizeBuilds(data: JsonData | null): BuildInfo[] {
+      return data && Array.isArray(data.builds) ? (data.builds as BuildInfo[]).filter(build => build && typeof build.id === 'string') : []
     }
 
-    function normalizeGroups(data) {
-      return data && Array.isArray(data.groups) ? data.groups.filter(group => group && typeof group.id === 'string') : []
+    function normalizeGroups(data: JsonData | null): GroupInfo[] {
+      return data && Array.isArray(data.groups) ? (data.groups as GroupInfo[]).filter(group => group && typeof group.id === 'string') : []
     }
 
     /** Builds a person can actually send: processed, not expired, newest first. */
-    function distributableBuilds(builds) {
+    function distributableBuilds(builds: BuildInfo[]): BuildInfo[] {
       if (!Array.isArray(builds)) return []
       return builds.filter(build => build && typeof build.processingState === 'string'
         && build.processingState.toUpperCase() === 'VALID' && build.expired !== true)
@@ -875,9 +1126,9 @@ window.__ModuleLoader__.load({
     /* One read query; `key` carries the input identity so effects re-run only
      * when the payload actually changes. Every query also watches the store's
      * `reload` counter, so the panel's single refresh button re-reads everything. */
-    function useQuery(store, action, input, enabled) {
+    function useQuery(store: Store, action: string, input: unknown, enabled: boolean): QueryResult {
       const key = input === undefined ? '' : JSON.stringify(input)
-      const [result, setResult] = React.useState({ loading: !!enabled, data: null, error: null })
+      const [result, setResult] = React.useState<QueryState>({ loading: !!enabled, data: null, error: null })
       const [nonce, setNonce] = React.useState(0)
       const tick = React.useSyncExternalStore(store.subscribe, () => store.getSnapshot().reload)
       const keyRef = React.useRef(key)
@@ -890,7 +1141,7 @@ window.__ModuleLoader__.load({
         keyRef.current = key
         let live = true
         setResult(current => ({ loading: true, data: changed ? null : current.data, error: null }))
-        const payload = key ? JSON.parse(key) : undefined
+        const payload: unknown = key ? JSON.parse(key) : undefined
         void store.probe(action, payload).then(reply => {
           if (!live) return
           setResult({ loading: false, data: reply.ok ? reply.data : null, error: reply.ok ? null : reply.error })
@@ -907,7 +1158,7 @@ window.__ModuleLoader__.load({
 
     /* The page outlived the Host half. One calm sentence and the one thing that fixes
      * it, instead of an error box per card. */
-    function Recovery({ t }) {
+    function Recovery({ t }: { t: Translate }): VNode {
       return h('section', { className: 'asc-hub-recovery', role: 'alert' },
         h('p', { className: 'asc-hub-recovery-title' }, t('hostDownTitle')),
         h('p', { className: 'asc-hub-recovery-body' }, t('hostDownBody')),
@@ -922,7 +1173,7 @@ window.__ModuleLoader__.load({
           }, t('reloadPanel'))))
     }
 
-    function ErrorNote({ t, error }) {
+    function ErrorNote({ t, error }: { t: Translate; error: HubError | null }): VNode | null {
       if (!error) return null
       const code = typeof error.code === 'string' ? error.code : ''
       // A dead transport is one fact about the page, not five; the panel banner owns it.
@@ -939,11 +1190,11 @@ window.__ModuleLoader__.load({
         detail ? h('pre', { className: 'asc-hub-detail' }, detail) : null)
     }
 
-    function ActionRow({ className, children }) {
+    function ActionRow({ className, children }: { className?: string; children?: Child }): VNode {
       return h('div', { className: className ? 'asc-hub-actions ' + className : 'asc-hub-actions' }, children)
     }
 
-    function SummaryRow({ label, value }) {
+    function SummaryRow({ label, value }: { label: string; value: string }): VNode[] {
       return [h('dt', { key: 't' }, label), h('dd', { key: 'd' }, value)]
     }
 
@@ -952,7 +1203,7 @@ window.__ModuleLoader__.load({
      * (or a tick once done) and, beside it, the rounded card that holds the work.
      * The rail behind the node is what shows progress between the cards.
      */
-    function Step({ number, total, title, subtitle, state, srLabel, children }) {
+    function Step({ number, total, title, subtitle, state, srLabel, children }: { number: number; total: number; title: string; subtitle?: string; state: string; srLabel?: string; children?: Child }): VNode {
       const done = state === 'done'
       return h('div', { className: 'asc-hub-phase', 'data-state': state },
         h('div', { className: 'asc-hub-phase-rail', 'aria-hidden': 'true' },
@@ -972,7 +1223,7 @@ window.__ModuleLoader__.load({
      * Trigger
      * ------------------------------------------------------------------ */
 
-    function StatusButton(props) {
+    function StatusButton(props: { t: Translate; store: Store; locale: LocaleService; open: () => void; sessionId?: string }): VNode {
       const { t, store, locale, open } = props
       useLocaleTick(locale)
       const state = React.useSyncExternalStore(store.subscribe, store.getSnapshot)
@@ -993,7 +1244,7 @@ window.__ModuleLoader__.load({
           h('span', { className: 'asc-hub-pill-text' }, 'asc: ' + label)))
     }
 
-    function TabTitle(props) {
+    function TabTitle(props: { t: Translate }): VNode {
       return h('span', { className: 'asc-hub-tab-title' }, props.t('tabTitle'))
     }
 
@@ -1001,9 +1252,9 @@ window.__ModuleLoader__.load({
      * Onboarding
      * ------------------------------------------------------------------ */
 
-    function EngineStep({ t, store, engine, engineReady }) {
+    function EngineStep({ t, store, engine, engineReady }: { t: Translate; store: Store; engine: EngineInfo | null; engineReady: boolean }): VNode {
       const [log, setLog] = React.useState('')
-      const [error, setError] = React.useState(null)
+      const [error, setError] = React.useState<HubError | null>(null)
       const [busy, setBusy] = React.useState(false)
       const install = async () => {
         setBusy(true)
@@ -1052,19 +1303,19 @@ window.__ModuleLoader__.load({
         h(ErrorNote, { t, error }))
     }
 
-    function LoginStep({ t, store, keepOnboarding, enabled, auth, verified }) {
+    function LoginStep({ t, store, keepOnboarding, enabled, auth, verified }: { t: Translate; store: Store; keepOnboarding: () => void; enabled: boolean; auth: AuthInfo | null; verified: boolean }): VNode {
       const [keyId, setKeyId] = React.useState('')
       const [issuerId, setIssuerId] = React.useState('')
       const [profileName, setProfileName] = React.useState('')
-      const [file, setFile] = React.useState(null)
+      const [file, setFile] = React.useState<KeyFile | null>(null)
       const [dragging, setDragging] = React.useState(false)
       const [busy, setBusy] = React.useState(false)
-      const [error, setError] = React.useState(null)
+      const [error, setError] = React.useState<HubError | null>(null)
       const [message, setMessage] = React.useState('')
       const [notice, setNotice] = React.useState('')
       const [checked, setChecked] = React.useState(false)
       const [showProfile, setShowProfile] = React.useState(false)
-      const fileInput = React.useRef(null)
+      const fileInput = React.useRef<HTMLInputElement | null>(null)
 
       // Verified locks the fields where they stand: the values stay visible, nothing
       // about them can change, and the only affordance left is Reset.
@@ -1079,9 +1330,9 @@ window.__ModuleLoader__.load({
       const credentialsReady = !missing.keyId && !missing.issuerId && !missing.file
       // Marks stay off until the user asks to verify, then follow the fields, so
       // filling one in clears its own message without a second click.
-      const showError = name => checked && missing[name]
+      const showError = (name: 'keyId' | 'issuerId' | 'file'): boolean => checked && missing[name]
 
-      const readFile = dropped => {
+      const readFile = (dropped: File | null): void => {
         if (!dropped) return
         const name = typeof dropped.name === 'string' ? dropped.name : ''
         if (!/\.p8$/i.test(name)) { setMessage(t('keyFileWrong')); return }
@@ -1126,7 +1377,7 @@ window.__ModuleLoader__.load({
         const result = await store.perform('auth.importKey', {
           keyId,
           issuerId,
-          privateKeyPem: file.text,
+          privateKeyPem: file!.text,
           name: profileName.trim() || undefined,
           network: true,
         })
@@ -1275,7 +1526,7 @@ window.__ModuleLoader__.load({
         h(ErrorNote, { t, error }))
     }
 
-    function ReadyStep({ t, onConsole, enabled }) {
+    function ReadyStep({ t, onConsole, enabled }: { t: Translate; onConsole: () => void; enabled: boolean }): VNode {
       // The confirming line states a fact about the machine, so it only appears
       // once that fact is true; a step that cannot run yet says nothing.
       return h('div', { className: 'asc-hub-step-body' },
@@ -1292,13 +1543,13 @@ window.__ModuleLoader__.load({
      * console. Steps that are already satisfied stay visible as one quiet line so
      * the page always reads 1-2-3.
      */
-    function Onboarding({ t, store, engine, auth, engineReady, authReady, onConsole, keepOnboarding }) {
+    function Onboarding({ t, store, engine, auth, engineReady, authReady, onConsole, keepOnboarding }: { t: Translate; store: Store; engine: EngineInfo | null; auth: AuthInfo | null; engineReady: boolean; authReady: boolean; onConsole: () => void; keepOnboarding: () => void }): VNode {
       const engineState = engineReady ? 'done' : 'current'
       const loginState = authReady ? 'done' : engineReady ? 'current' : 'pending'
       const readyState = engineReady && authReady ? 'current' : 'pending'
       // The visible numerals are decorative, so each card names itself to a screen
       // reader: "Step 2 of 3", plus "Done" once satisfied.
-      const sr = (index, state) => {
+      const sr = (index: number, state: string): string => {
         const ordinal = t('stepOf', { current: index, total: 3 })
         return state === 'done' ? ordinal + ', ' + t('step.done') : ordinal
       }
@@ -1326,7 +1577,7 @@ window.__ModuleLoader__.load({
 
     /* The app card is the picker: the card title is its label, so both sit on one
      * row instead of a title above a second, redundant label. */
-    function AppPicker({ t, query, apps, appId, onChange }) {
+    function AppPicker({ t, query, apps, appId, onChange }: { t: Translate; query: QueryState; apps: AppInfo[]; appId: string; onChange: (value: string) => void }): VNode {
       return h('section', { className: 'asc-hub-card' },
         h('div', { className: 'asc-hub-inline' },
           h('span', { className: 'asc-hub-inline-label' }, t('appTitle')),
@@ -1347,8 +1598,8 @@ window.__ModuleLoader__.load({
     }
 
     /* Where a build stands with TestFlight: one tag per audience it reached. */
-    function TestFlightMarks({ t, build }) {
-      const marks = []
+    function TestFlightMarks({ t, build }: { t: Translate; build: BuildInfo }): VNode | null {
+      const marks: VNode[] = []
       if (build.internal === true) {
         marks.push(h('span', {
           key: 'internal',
@@ -1384,11 +1635,11 @@ window.__ModuleLoader__.load({
       'When the archive and the export both succeed, tell me the scheme and the exact commands that worked, so I can run them from the ASC Hub panel.',
     ].join('\n')
 
-    function WorkspaceCard({ t, store, sessionId }) {
+    function WorkspaceCard({ t, store, sessionId }: { t: Translate; store: Store; sessionId?: string }): VNode {
       const query = useQuery(store, 'workspace.info', sessionId ? { sessionId } : {}, true)
-      const data = query[0].data && typeof query[0].data === 'object' ? query[0].data : null
-      const text = key => (data && typeof data[key] === 'string' ? data[key] : '')
-      const count = key => (data && typeof data[key] === 'number' ? data[key] : null)
+      const data = query[0].data && typeof query[0].data === 'object' ? query[0].data as WorkspaceInfo : null
+      const text = (key: keyof WorkspaceInfo): string => (data && typeof data[key] === 'string' ? data[key] : '')
+      const count = (key: keyof WorkspaceInfo): number | null => (data && typeof data[key] === 'number' ? data[key] : null)
       const display = text('display')
       const cwd = text('cwd')
       const branch = text('branch')
@@ -1418,7 +1669,7 @@ window.__ModuleLoader__.load({
       }
       // Second line: which branch, how far from its upstream, and whether anything is
       // uncommitted. Short tokens with full sentences in the tooltips.
-      const dirty = []
+      const dirty: string[] = []
       if (clean) dirty.push(t('gitClean'))
       else {
         if (changed !== null && changed > 0) dirty.push(t('gitUncommitted', { count: changed }))
@@ -1466,7 +1717,7 @@ window.__ModuleLoader__.load({
           : null)
     }
 
-    function SalesCard({ t, store, appId }) {
+    function SalesCard({ t, store, appId }: { t: Translate; store: Store; appId: string }): VNode {
       const [period, setPeriod] = React.useState('day')
       const [date, setDate] = React.useState('')
       const [vendorNumber, setVendorNumber] = React.useState(() => readStored(VENDOR_KEY))
@@ -1474,13 +1725,13 @@ window.__ModuleLoader__.load({
       const [vendorDraft, setVendorDraft] = React.useState(() => readStored(VENDOR_KEY))
 
       // CONTRACT §Sales: `appId` is required and the report is vendor-scoped.
-      const input = { appId, period }
+      const input: SalesInput = { appId, period }
       if (date) input.date = date
       if (vendorNumber) input.vendorNumber = vendorNumber
-      const query = useQuery(store.probe, 'sales.summary', input, !!appId)
+      const query = useQuery(store, 'sales.summary', input, !!appId)
       const data = query[0].data && typeof query[0].data === 'object' ? query[0].data : null
-      const rows = data && Array.isArray(data.rows) ? data.rows : null
-      const totals = data && data.totals && typeof data.totals === 'object' ? data.totals : null
+      const rows = data && Array.isArray(data.rows) ? data.rows as SalesRow[] : null
+      const totals = data && data.totals && typeof data.totals === 'object' ? data.totals as SalesTotals : null
       const needsVendor = !!(query[0].error && query[0].error.code === 'VENDOR_REQUIRED')
       const showVendorField = editingVendor || needsVendor
 
@@ -1559,10 +1810,10 @@ window.__ModuleLoader__.load({
               h('td', { className: 'asc-hub-num' }, String(totals.proceeds !== undefined ? totals.proceeds : '—'))) : null)) : null)
     }
 
-    function AnalyticsCard({ t, store, appId }) {
-      const query = useQuery(store.probe, 'analytics.reports', appId ? { appId } : undefined, !!appId)
+    function AnalyticsCard({ t, store, appId }: { t: Translate; store: Store; appId: string }): VNode {
+      const query = useQuery(store, 'analytics.reports', appId ? { appId } : undefined, !!appId)
       const data = query[0].data && typeof query[0].data === 'object' ? query[0].data : null
-      const requests = data && Array.isArray(data.requests) ? data.requests : []
+      const requests: JsonData[] = data && Array.isArray(data.requests) ? data.requests as JsonData[] : []
       return h('section', { className: 'asc-hub-card' },
         h('div', { className: 'asc-hub-card-head' },
           h('h3', { className: 'asc-hub-card-title' }, t('analyticsTitle')),
@@ -1573,7 +1824,7 @@ window.__ModuleLoader__.load({
           ? h('p', { className: 'asc-hub-hint' }, t('noAnalytics')) : null,
         requests.length > 0 ? h('ul', { className: 'asc-hub-rows' },
           requests.map((request, index) => {
-            const record = request && typeof request === 'object' ? request : {}
+            const record: JsonData = request && typeof request === 'object' ? request : {}
             const id = record.id !== undefined ? String(record.id) : ''
             const accessType = record.accessType !== undefined ? String(record.accessType) : ''
             const summary = id || accessType ? null : JSON.stringify(record).slice(0, 160)
@@ -1585,7 +1836,7 @@ window.__ModuleLoader__.load({
           })) : null)
     }
 
-    function LogArea({ t, log }) {
+    function LogArea({ t, log }: { t: Translate; log: LogEntry[] }): VNode {
       const entries = Array.isArray(log) ? log : []
       return h('details', { className: 'asc-hub-log' },
         h('summary', null, t('logTitle')),
@@ -1599,9 +1850,9 @@ window.__ModuleLoader__.load({
      * on this machine; the row opens by default so the state and its one button are
      * both in reach, and installing is the same installer the user would run by hand.
      */
-    const SKILL_EXAMPLES = ['skillsUse1', 'skillsUse2', 'skillsUse3', 'skillsUse4', 'skillsUse5', 'skillsUse6', 'skillsUse7']
+    const SKILL_EXAMPLES: string[] = ['skillsUse1', 'skillsUse2', 'skillsUse3', 'skillsUse4', 'skillsUse5', 'skillsUse6', 'skillsUse7']
 
-    function SkillsRow({ t, store, skills, busy }) {
+    function SkillsRow({ t, store, skills, busy }: { t: Translate; store: Store; skills: SkillsInfo | null; busy: string }): VNode {
       // Open on arrival: the inherited pack is usually already installed, so the row
       // reads as a fact ("here is what asc put on this machine") instead of a
       // disclosure to hunt for.
@@ -1650,7 +1901,7 @@ window.__ModuleLoader__.load({
      * store version carries. It starts at three and grows by three, so a long history
      * never pushes the rest of the console off the panel. Picking a build happens where
      * it is used — TestFlight and Review each own a menu — so this list is a reference. */
-    function BuildsCard({ t, appId, query, builds, release }) {
+    function BuildsCard({ t, appId, query, builds, release }: { t: Translate; appId: string; query: QueryState; builds: BuildInfo[]; release: BuildInfo | null }): VNode {
       const [visible, setVisible] = React.useState(BUILD_PAGE)
       React.useEffect(() => { setVisible(BUILD_PAGE) }, [appId])
 
@@ -1658,11 +1909,11 @@ window.__ModuleLoader__.load({
       const shown = builds.slice(0, visible)
       const hasMore = builds.length > shown.length
       const expanded = visible > BUILD_PAGE
-      const tags = (build, pinnedRow) => h('span', { className: 'asc-hub-build-tags' },
+      const tags = (build: BuildInfo, pinnedRow: boolean): VNode => h('span', { className: 'asc-hub-build-tags' },
         pinnedRow
           ? h('span', { className: 'asc-hub-tf', 'data-audience': 'release' }, t('releaseTag'))
           : h(TestFlightMarks, { t, build }))
-      const row = (build, pinnedRow) => h('li', {
+      const row = (build: BuildInfo, pinnedRow: boolean): VNode => h('li', {
         key: pinnedRow ? 'pinned-' + build.id : build.id,
         className: pinnedRow ? 'asc-hub-row asc-hub-row-build asc-hub-row-pinned' : 'asc-hub-row asc-hub-row-build',
       },
@@ -1705,8 +1956,8 @@ window.__ModuleLoader__.load({
     /* Step 1 of the release flow: build the code in the working directory. Version and
      * build number are two separate decisions — that is what `1.2.5 (2)` is — so they
      * are two fields, and the scheme comes from the project itself. */
-    function BuildCard({ t, store, appId, sessionId, builds, onBuilt }) {
-      const versions = []
+    function BuildCard({ t, store, appId, sessionId, builds, onBuilt }: { t: Translate; store: Store; appId: string; sessionId?: string; builds: BuildInfo[]; onBuilt: () => void }): VNode {
+      const versions: string[] = []
       for (const build of builds) {
         const version = build && typeof build.version === 'string' ? build.version : ''
         if (version !== '' && versions.indexOf(version) === -1) versions.push(version)
@@ -1714,7 +1965,7 @@ window.__ModuleLoader__.load({
       const [version, setVersion] = React.useState('')
       const [buildNumber, setBuildNumber] = React.useState('')
       const [busy, setBusy] = React.useState(false)
-      const [error, setError] = React.useState(null)
+      const [error, setError] = React.useState<HubError | null>(null)
       const [note, setNote] = React.useState('')
 
       // Suggested, never imposed: the newest version and the next number for it, until
@@ -1790,7 +2041,7 @@ window.__ModuleLoader__.load({
     }
 
     /** Numeric comparison of dotted version strings; null when either side is unusable. */
-    function compareVersions(a, b) {
+    function compareVersions(a: unknown, b: unknown): number | null {
       if (typeof a !== 'string' || typeof b !== 'string' || a === '' || b === '') return null
       const left = a.split('.').map(part => Number(part))
       const right = b.split('.').map(part => Number(part))
@@ -1810,7 +2061,7 @@ window.__ModuleLoader__.load({
     /* The build menu both later steps use: label and choice on one row. A step owns its
      * own choice, because sending a build to testers and submitting one for review are
      * different decisions about the same list. */
-    function BuildMenu({ t, label, builds, buildId, onChange, optionLabel }) {
+    function BuildMenu({ t, label, builds, buildId, onChange, optionLabel }: { t: Translate; label: string; builds: BuildInfo[]; buildId: string; onChange: (value: string) => void; optionLabel?: (build: BuildInfo | null) => string }): VNode {
       const name = typeof optionLabel === 'function' ? optionLabel : buildLabel
       return h('div', { className: 'asc-hub-inline' },
         h('span', { className: 'asc-hub-inline-label' }, label),
@@ -1826,15 +2077,15 @@ window.__ModuleLoader__.load({
     }
 
     /* Step 2: pick a build from the menu, pick the groups, write what to test, send. */
-    function TestFlightCard({ t, store, appId, builds, onSent }) {
+    function TestFlightCard({ t, store, appId, builds, onSent }: { t: Translate; store: Store; appId: string; builds: BuildInfo[]; onSent: () => void }): VNode {
       const groupsQuery = useQuery(store, 'testflight.groups', appId ? { appId } : undefined, !!appId)
       const groups = normalizeGroups(groupsQuery[0].data)
       const [buildId, setBuildId] = React.useState('')
-      const [selected, setSelected] = React.useState([])
+      const [selected, setSelected] = React.useState<string[]>([])
       const [whatsNew, setWhatsNew] = React.useState('')
       const [busy, setBusy] = React.useState(false)
-      const [error, setError] = React.useState(null)
-      const [sent, setSent] = React.useState(null)
+      const [error, setError] = React.useState<HubError | null>(null)
+      const [sent, setSent] = React.useState<string | null>(null)
 
       // The newest build is the default, and a choice that no longer exists is dropped.
       React.useEffect(() => {
@@ -1845,7 +2096,7 @@ window.__ModuleLoader__.load({
 
       const build = builds.find(candidate => candidate.id === buildId) || null
 
-      const toggle = id => {
+      const toggle = (id: string): void => {
         setSelected(current => current.indexOf(id) === -1 ? current.concat([id]) : current.filter(item => item !== id))
       }
 
@@ -1856,7 +2107,7 @@ window.__ModuleLoader__.load({
         setBusy(true)
         setError(null)
         setSent(null)
-        const input = { appId, buildId: build.id, groupIds: selected, confirm: true }
+        const input = { appId, buildId: build.id, groupIds: selected, confirm: true } as DistributeInput
         if (whatsNew) input.whatsNew = whatsNew
         const result = await store.perform('testflight.distribute', input)
         setBusy(false)
@@ -1920,11 +2171,11 @@ window.__ModuleLoader__.load({
 
     /* Step 3: the App Review half. Pick a build; a build that already went through
      * review says so, and a build that has not is the one you can submit. */
-    function ReviewCard({ t, store, appId, builds }) {
+    function ReviewCard({ t, store, appId, builds }: { t: Translate; store: Store; appId: string; builds: BuildInfo[] }): VNode {
       const [buildId, setBuildId] = React.useState('')
       const [confirm, setConfirm] = React.useState(false)
       const [busy, setBusy] = React.useState(false)
-      const [error, setError] = React.useState(null)
+      const [error, setError] = React.useState<HubError | null>(null)
 
       React.useEffect(() => {
         if (buildId !== '' && builds.some(build => build.id === buildId)) return
@@ -1941,7 +2192,7 @@ window.__ModuleLoader__.load({
       const versions = useQuery(store, 'release.versions', appId ? { appId } : undefined, !!appId)
       const readinessData = readiness[0].data && typeof readiness[0].data === 'object' ? readiness[0].data : null
       const releaseData = release[0].data && typeof release[0].data === 'object' ? release[0].data : null
-      const blockers = readinessData && Array.isArray(readinessData.blockers) ? readinessData.blockers : []
+      const blockers: BlockerInfo[] = readinessData && Array.isArray(readinessData.blockers) ? readinessData.blockers as BlockerInfo[] : []
       const warnings = readinessData && typeof readinessData.warnings === 'number' ? readinessData.warnings : 0
       const reviewState = releaseData && releaseData.reviewState ? String(releaseData.reviewState) : ''
       const versionState = releaseData && releaseData.versionState ? String(releaseData.versionState) : ''
@@ -1950,18 +2201,18 @@ window.__ModuleLoader__.load({
       // A build has been reviewed when the version that carries it got past App Review.
       // A build no version carries never went to review at all (TestFlight-only builds
       // are exactly that), which the old version-number guess got wrong.
-      const versionsData = versions[0].data && Array.isArray(versions[0].data.versions) ? versions[0].data.versions : null
+      const versionsData: VersionEntry[] | null = versions[0].data && Array.isArray(versions[0].data.versions) ? versions[0].data.versions as VersionEntry[] : null
       const carriedBy = build ? versionsData && versionsData.find(entry => entry.buildId === build.id) : null
       // A version that shipped locks its number: no build can be submitted under it again,
       // and the menu says so instead of letting the readiness check explain it the long way.
-      const versionShipped = entry => Boolean(entry) && /READY_FOR_DISTRIBUTION|PENDING_APPLE_RELEASE|PENDING_DEVELOPER_RELEASE|PROCESSING_FOR_DISTRIBUTION|READY_FOR_SALE/.test(
+      const versionShipped = (entry: VersionEntry): boolean => Boolean(entry) && /READY_FOR_DISTRIBUTION|PENDING_APPLE_RELEASE|PENDING_DEVELOPER_RELEASE|PROCESSING_FOR_DISTRIBUTION|READY_FOR_SALE/.test(
         entry.state ? String(entry.state) : '',
       )
       const shippedVersion = version !== '' && versionsData !== null
         ? versionsData.find(entry => entry.version === version && versionShipped(entry)) || null
         : null
       const blockedByShippedVersion = shippedVersion !== null
-      const menuLabel = candidate => {
+      const menuLabel = (candidate: BuildInfo | null): string => {
         if (!candidate) return ''
         const entry = versionsData ? versionsData.find(item => item.buildId === candidate.id) : null
         if (entry && versionShipped(entry)) return buildLabel(candidate) + ' · ' + t('buildReleased')
@@ -1988,7 +2239,7 @@ window.__ModuleLoader__.load({
         if (!appId || !build) return
         setBusy(true)
         setError(null)
-        const input = { appId, buildId: build.id, confirm: true }
+        const input = { appId, buildId: build.id, confirm: true } as SubmitInput
         if (version) input.version = version
         const result = await store.perform('release.submit', input)
         setBusy(false)
@@ -2067,7 +2318,7 @@ window.__ModuleLoader__.load({
 
     /* Step 4: what happens once review passes — an approved version waits for the
      * developer to release it, and that is a separate, deliberate click. */
-    function ReleaseCard({ t, store, appId, build }) {
+    function ReleaseCard({ t, store, appId, build }: { t: Translate; store: Store; appId: string; build: BuildInfo | null }): VNode {
       const release = useQuery(store, 'release.status', appId ? { appId } : undefined, !!appId)
       const data = release[0].data && typeof release[0].data === 'object' ? release[0].data : null
       const version = data && data.version ? String(data.version) : ''
@@ -2075,7 +2326,7 @@ window.__ModuleLoader__.load({
       const versionState = data && data.versionState ? String(data.versionState) : ''
       const [confirm, setConfirm] = React.useState(false)
       const [busy, setBusy] = React.useState(false)
-      const [error, setError] = React.useState(null)
+      const [error, setError] = React.useState<HubError | null>(null)
       const [done, setDone] = React.useState(false)
       // Only this state is waiting for a human: Apple-scheduled releases move on their own.
       const pending = versionState === 'PENDING_DEVELOPER_RELEASE'
@@ -2134,7 +2385,7 @@ window.__ModuleLoader__.load({
     /** How many recent builds the console asks for, so the release build is findable. */
     const PICK_LIMIT = 12
 
-    function Console({ t, store, skills, busy, sessionId }) {
+    function Console({ t, store, skills, busy, sessionId }: { t: Translate; store: Store; skills: SkillsInfo | null; busy: string; sessionId?: string }): VNode {
       const [appId, setAppId] = React.useState(() => readStored(APP_KEY))
       const appsQuery = useQuery(store, 'apps.list', {}, true)
       const buildsQuery = useQuery(store, 'builds.list', appId ? { appId, limit: PICK_LIMIT } : undefined, !!appId)
@@ -2153,7 +2404,7 @@ window.__ModuleLoader__.load({
         ? recent.find(build => build.version === releaseVersion
           && (releaseNumber === '' || build.buildNumber === releaseNumber)) || null
         : null
-      const chooseApp = next => {
+      const chooseApp = (next: string): void => {
         setAppId(next)
         writeStored(APP_KEY, next)
       }
@@ -2177,7 +2428,7 @@ window.__ModuleLoader__.load({
      * Panel body
      * ------------------------------------------------------------------ */
 
-    function PanelBody(props) {
+    function PanelBody(props: { t: Translate; store: Store; locale: LocaleService; useTabInfo: () => TabInfo; sessionId?: string }): VNode {
       const { t, store, locale, useTabInfo } = props
       useLocaleTick(locale)
       const state = React.useSyncExternalStore(store.subscribe, store.getSnapshot)
@@ -2347,7 +2598,7 @@ window.__ModuleLoader__.load({
      * Plugin body
      * ------------------------------------------------------------------ */
 
-    function apply(ctx) {
+    function apply(ctx: ClientContext): void {
       const store = createStore(ctx)
       const t = ctx.locale.bind(NS)
 

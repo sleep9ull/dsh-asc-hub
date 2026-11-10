@@ -4,19 +4,17 @@
   "description": "DeepSeek Harness plugin: an App Store Connect console that installs and inherits the asc CLI, signs in through the macOS Keychain, and ships builds to TestFlight, submits releases and reads sales.",
   "license": "MIT",
   "type": "module",
-  "main": "index.js",
+  "main": "dist/index.js",
   "exports": {
-    ".": "./index.js",
-    "./client": "./client.js",
+    ".": "./dist/index.js",
+    "./client": "./dist/client.js",
     "./cordis.patch.yml": "./cordis.patch.yml",
     "./locale/*.json": "./locale/*.json",
     "./icon": "./icon.svg",
     "./package.json": "./package.json"
   },
   "files": [
-    "index.js",
-    "client.js",
-    "host",
+    "dist",
     "cordis.patch.yml",
     "locale/*.json",
     "icon.svg",
@@ -58,9 +56,13 @@
     "dsh": ">=0.2.2-rc.1 <0.3.0"
   },
   "scripts": {
-    "test": "node --test test/*.test.js",
-    "check": "node --check index.js && node --check client.js",
-    "prepublishOnly": "npm run check && npm test"
+    "build": "tsc -p tsconfig.json && tsc -p tsconfig.client.json",
+    "check": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.client.json --noEmit && tsc -p tsconfig.test.json --noEmit && tsc -p tsconfig.smoke.json --noEmit",
+    "test": "npm run build && tsc -p tsconfig.test.json && node --test dist-test/*.test.js",
+    "smoke": "npm run build && node --experimental-strip-types client/__smoke__.mts",
+    "verify": "npm run check && npm test && node --experimental-strip-types client/__smoke__.mts",
+    "prepare": "npm run build",
+    "prepublishOnly": "npm run verify"
   },
   "author": "sleep9ull",
   "homepage": "https://github.com/sleep9ull/dsh-asc-hub#readme",
@@ -70,5 +72,9 @@
   },
   "bugs": {
     "url": "https://github.com/sleep9ull/dsh-asc-hub/issues"
+  },
+  "devDependencies": {
+    "@types/node": "^24.19.2",
+    "typescript": "^5.9.3"
   }
 }

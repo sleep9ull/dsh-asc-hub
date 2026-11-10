@@ -215,9 +215,11 @@ Use the `plugin_manager` tool; do not reproduce installation with shell commands
 
 `package.json` `version` is the single source; DSH reads npm for updates and never reads GitHub
 Releases, so **`npm publish` is the release** and a git/tarball/link install is not updatable in
-place. Keep the CHANGELOG heading, `git tag v<version>` and the published version identical (`git tag
--f` when the tag predates the tree being published), and re-verify `engines.dsh` on every DSH minor —
-it gates mounting, and `semver.satisfies` here runs with `includePrerelease`. Full checklist and the per-install-kind upgrade matrix: [docs/RELEASING.md](docs/RELEASING.md).
+place. **No git tags and no GitHub Releases are maintained**: `npm publish` records the commit it
+shipped as the packument's `gitHead`, which is the provenance a tag used to carry, and a tag that
+drifts from the published tree is worse than none. Keep the CHANGELOG heading and the published
+version identical, and re-verify `engines.dsh` on every DSH minor — it gates mounting, and
+`semver.satisfies` here runs with `includePrerelease`. Full checklist and the per-install-kind upgrade matrix: [docs/RELEASING.md](docs/RELEASING.md).
 The day-to-day loop (when to commit, when to bump, release day, the 72 hours after, incidents) is
 [docs/WORKFLOW.md](docs/WORKFLOW.md).
 

@@ -88,13 +88,13 @@ things that silently break.
 4. **CHANGELOG.** `[Unreleased]` → `## [x.y.z] — <date>`, fresh `[Unreleased]`, link reference at the
    bottom.
 5. **Pack check** (only when `files`/`exports` changed): `npm pack --dry-run`.
-6. **Commit + tag.** `git commit -m "release: @sleep9ull/dsh-asc-hub X.Y.Z"` then
-   `git tag -a vX.Y.Z -m "@sleep9ull/dsh-asc-hub X.Y.Z"`.
+6. **Commit.** `git commit -m "release: @sleep9ull/dsh-asc-hub X.Y.Z"`. No tag — `gitHead` in the
+   packument records the commit npm receives.
 7. **Publish.** `npm publish`. `prepublishOnly` re-runs `check` + tests, so a broken tree cannot ship.
    This step is irreversible — treat it as the one human decision in the routine.
-8. **Push.** `git push origin main --follow-tags`.
-9. **Announce.** GitHub Release from the tag, body = the CHANGELOG section; say so explicitly when the
-   `engines.dsh` floor moved.
+8. **Push.** `git push origin main`.
+9. **Announce.** No release object to create: the CHANGELOG entry and the npm version page are the
+   record. Say so explicitly when the `engines.dsh` floor moved.
 10. **Dogfood the user path.** Switch the profile to the registry copy, restart, and confirm you are
     looking at what a user gets:
 
@@ -133,10 +133,11 @@ If the release is bad:
 
 ## 5. Incident loop (same day)
 
-1. Reproduce on the **linked** copy checked out at the failing tag (`git switch -c hotfix/x.y.z vX.Y.Z`
-   or a worktree), so the fix is made against the code that shipped, not against `main`.
-2. Fix, patch bump, `npm publish`, `git push origin main --follow-tags` from the hotfix branch's tag,
-   then cherry-pick the fix onto `main` and move `[Unreleased]` on.
+1. Reproduce on the **linked** copy checked out at the commit npm shipped —
+   `npm view @sleep9ull/dsh-asc-hub@x.y.z gitHead`, then `git switch -c hotfix/x.y.z <sha>` or a
+   worktree — so the fix is made against the code that shipped, not against `main`.
+2. Fix, patch bump, `npm publish`, `git push origin main` from the hotfix branch, then cherry-pick the
+   fix onto `main` and move `[Unreleased]` on.
 3. `npm deprecate` the bad version with a sentence that tells a user what to do.
 
 ## 6. Maintenance cadence (not per release)
@@ -152,7 +153,7 @@ If the release is bad:
 
 - Publishing from a dirty tree, or with `[Unreleased]` half-written.
 - `npm unpublish`, or reusing a version number.
-- A tag, the npm version and the CHANGELOG heading that disagree.
+- The npm version and the CHANGELOG heading that disagree — or a tag left behind that points elsewhere.
 - Bumping the version in a normal commit, so every refactor looks like a release.
 - Treating a GitHub Release as the release action (DSH never reads it).
 - Declaring an `engines.dsh` floor that excludes the prerelease runtime you actually use.
@@ -172,10 +173,9 @@ PRE-FLIGHT
 RELEASE
 [ ] package.json version bumped
 [ ] CHANGELOG: [Unreleased] → [x.y.z] — date, fresh [Unreleased], link ref
-[ ] commit "release: @sleep9ull/dsh-asc-hub X.Y.Z" + annotated tag vX.Y.Z
+[ ] commit "release: @sleep9ull/dsh-asc-hub X.Y.Z" (no tag)
 [ ] npm publish (irreversible)
-[ ] git push origin main --follow-tags
-[ ] GitHub Release body = CHANGELOG section
+[ ] git push origin main
 
 AFTER
 [ ] dev→registry dogfood: footer version, Versions section, Add plugin finds it

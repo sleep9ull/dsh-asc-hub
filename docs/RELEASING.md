@@ -62,10 +62,13 @@ the Installed tab.
 So:
 
 - **npm publish is the release.** It is what makes `Update` appear.
-- **GitHub Releases are for humans**: release notes, a downloadable tarball pointer, a stable URL to
-  cite. Useful, cheap, not load-bearing. A git spec (`github:sleep9ull/dsh-asc-hub#v0.2.0`) installs,
-  but that profile can never be upgraded in place — only uninstall + reinstall.
-- A GitHub Release, a tag and the npm version are kept in lockstep so a bug report names one thing.
+- **There is no tag and no GitHub Release.** `npm publish` records the commit it shipped in the
+  packument's `gitHead` (`npm view @sleep9ull/dsh-asc-hub@0.1.0 gitHead`), which is the provenance a
+  tag used to carry. A tag that drifts from the published tree — `v0.1.0` pointed three commits past
+  the code npm was meant to receive — is worse than no tag, and a GitHub Release only keeps a second
+  copy of notes the CHANGELOG already owns.
+- A git spec (`github:sleep9ull/dsh-asc-hub#<commit>`) still installs, pinned to a commit, but that
+  profile can never be upgraded in place — only uninstall + reinstall.
 
 ## Version policy
 
@@ -81,8 +84,9 @@ Rules that never bend:
 
 - A published version is immutable. Never reuse or overwrite one; npm allows an unpublish for 72
   hours and it is still the wrong tool — ship `0.2.1`.
-- `git tag v<version>` must equal `package.json` `version` and the CHANGELOG heading
-  (`## [0.2.0] — YYYY-MM-DD`).
+- `package.json` `version` and the CHANGELOG heading (`## [0.2.0] — YYYY-MM-DD`) name the same
+  release. Nothing else is created: the packument's `gitHead` is the record of which commit npm
+  received, so a version, its notes and its code still name one thing.
 - `HUB_VERSION` in `src/host/dispatch.ts` is read once from `package.json` at Host load, so the footer
   reports the version of the **loaded** copy: after a bump, restart the Host to see it. A linked
   checkout shows the new number only after a restart, not after a page refresh.
@@ -95,25 +99,21 @@ Rules that never bend:
 3. Move `[Unreleased]` in `CHANGELOG.md` to `## [x.y.z] — <date>`, leave a fresh `[Unreleased]`, and
    add the link reference at the bottom.
 4. If the wire changed, `docs/CONTRACT.md` changed in the same commit (invariant in `AGENTS.md`).
-5. Commit, then `git tag -a vX.Y.Z -m "@sleep9ull/dsh-asc-hub X.Y.Z"` — use `git tag -f` when the
-   tag already sits on an older commit. The first public release does exactly that: `v0.1.0` moves
-   from the pre-TypeScript tree to the commit npm actually receives.
+5. Commit. No tag: `gitHead` records the commit at publish time.
 6. `npm publish` — `prepublishOnly` re-runs `check` + tests, and refuses to publish a broken tree.
    `npm pack --dry-run` first if the `files` list changed (~122 kB packed, 46 files today).
    The README the registry renders is the tarball's `README.md`, and every link in it is absolute:
    npmjs.com does not resolve relative paths, so `README.en.md`, `docs/**` and `icon.svg` must stay
    full URLs or they are 404s on the package page.
-7. `git push origin main --follow-tags`.
-8. Create the GitHub Release from the tag, pasting the CHANGELOG section. Attach nothing: npm is the
-   artifact.
-9. Re-verify the published copy the way a user gets it — remove the `link:` dependency and install
+7. `git push origin main`.
+8. Re-verify the published copy the way a user gets it — remove the `link:` dependency and install
    the registry version (see below), then confirm the footer reports `x.y.z` after a restart.
-10. **T+1 day:** ask `plugin_market` for `@sleep9ull/dsh-asc-hub`. Found → the catalog picked it up; absent →
-    step 11.
-11. **T+3 days, still absent:** open a listing request with the catalog, and/or publish our own
+9. **T+1 day:** ask `plugin_market` for `@sleep9ull/dsh-asc-hub`. Found → the catalog picked it up; absent →
+   step 10.
+10. **T+3 days, still absent:** open a listing request with the catalog, and/or publish our own
     `@sleep9ull/dsh-asc-hub` index (see [Distribution vs discovery](#distribution-vs-discovery-npm-ships-it-an-index-finds-it)).
 
-Steps 10–11 are discovery only. Skipping them costs nothing at install time — **Add plugin** and
+Steps 9–10 are discovery only. Skipping them costs nothing at install time — **Add plugin** and
 `dsh plugin add` read npm directly — but it costs every search in Discover.
 
 First publish needs `npm login` once, with the account that owns the `@sleep9ull` scope. The package

@@ -4,12 +4,54 @@ Two steps stand between a fresh install and a working console: install the `asc`
 App Store Connect with an API key. While either is unfinished the trigger in the session header
 reads `asc: start`; it flips to `asc: ready` only when both are done.
 
-The panel renders the flow as a **gate sheet**, not as three equal cards. A three-segment rail
-and a `Step 2 of 3` line sit at the top; the step you are on is the only 20px headline, marked by a
-brand-coloured spine down its left edge; steps already passed collapse to one stamped line
-(`✓ Install the asc engine   asc 6.5.3 ready`); steps still ahead are a bare numeral and title. Inside
-the active step, hints, field labels and install output stay at 11–12px secondary, so the headline —
-not the explanation — is what the eye lands on.
+The panel renders the whole flow on **one page**, top to bottom as 1-2-3: install the engine, sign in,
+open the console. A 2px spine runs down the left gutter and connects the three steps; each node sits on
+the optical centre of its step's title and carries the step number, so the sequence is legible before
+anything is read. The steps have **no frames**: one hairline divider between them, starting at the
+content edge so it never crosses the spine.
+
+Each step reads title, then subtitle, then its controls: the 16px title names the step, a 12px
+secondary line says what it is or why it is needed ("A required core engine the plugin drives to reach
+App Store Connect"), and the last one names the destination — "Opens the console in this panel:
+builds, TestFlight, review and sales." `Start to build` switches this right-sidebar panel from the setup
+flow to the console; it does not open a window.
+
+Three states, told by the node and the title — no surfaces, no shadows, no state words:
+
+| state | node | title |
+|---|---|---|
+| current | 26px filled accent disc | 16px, primary, 600 |
+| done | 20px filled accent disc with a tick | 16px, secondary, 500 |
+| pending | 20px hollow disc | 16px, secondary, 500 |
+
+The spine is accent-coloured up to the node you are on and grey beyond it, so progress is read off the
+line rather than a label. Exactly one button on the page is filled with the product accent — App Store
+Connect blue, `#0071e3`. On the sign-in card that is `Verify and sign in`; `Get an API key` beside it
+is a quiet secondary: white surface, accent edge, grey label. Onboarding never asks for a filesystem
+path: the `.p8` is dropped (or picked) on the key row, and that file *is* the input.
+
+Layout rules that must not regress, because each one exists to stop the panel moving under the user:
+
+- every credential field is three primary buttons wide and shares one calc, never full bleed;
+- each field keeps an empty message line, so a red sentence fills reserved space instead of pushing the
+  card open — validation is a red edge plus that sentence;
+- the optional profile name is folded behind a triangle but keeps its box, so revealing it cannot move
+  `Verify and sign in` below it;
+- the card that ends the flow reserves nothing: it is a title, a subtitle and one button.
+
+Under the `Install` button sits **one reserved text line**, held open before the click and identical
+in height afterwards, so installing never moves the steps below. It reads `Installing…` while the
+engine arrives, `(asc 6.5.3 ready)` once it has, and the last line of installer output if it fails. The
+button itself keeps saying `Install` until the engine is in place, when it becomes a disabled
+`Installed`. There is no busy banner in the panel header — the step that is working says so, and the
+header announces it to screen readers only.
+
+The panel header is the title and two icon buttons; the engine version and the mode report from a
+footer at the foot of the panel (`asc 6.5.3` left, `read-only mode` / `write mode` right).
+
+The numerals and ticks are decorative, so every card also names itself to assistive tech
+("Step 2 of 3"). Motion is limited to the 200ms colour transition of a node, and is disabled under
+`prefers-reduced-motion`.
 
 Both onboarding steps are **local actions** (class `local-write` in the contract): they change this
 machine, not App Store Connect. They work in the default `read-only` mode, so onboarding needs no
@@ -123,23 +165,30 @@ You need:
 
 ### 2b. Hand the key to `asc`
 
-The panel collects the three values and the Host runs, with flags verified against `asc auth login
---help`. This is a panel-only action: the model cannot sign in or out, so the credential handoff
-always belongs to the human.
+The panel asks for three things only: **Key ID**, **Issuer ID**, and **the `.p8` file itself** — drag
+it onto the key row, or use `Choose file`. It never asks for a filesystem path: the user has just
+downloaded the file, so the file *is* the input. Dropping it also fills the Key ID from the
+`AuthKey_<KEY_ID>.p8` filename.
+
+The Host then writes the PEM to a temporary file with mode `0600`, runs the upstream command below,
+and deletes the file in a `finally` block. The PEM is never persisted by the plugin, never logged, and
+never echoed back. This is a panel-only action: the model cannot sign in or out, so the credential
+handoff always belongs to the human.
 
 ```bash
 asc auth login \
   --name "MyKey" \
   --key-id "KEY_ID" \
   --issuer-id "ISSUER_ID" \
-  --private-key "/path/to/AuthKey_KEY_ID.p8"
+  --private-key "<the 0600 temporary file>" \
+  --network
 ```
 
-Flags the console can pass, and the manual equivalents:
+Flags involved, and their manual equivalents:
 
 | situation | flag |
 |---|---|
-| validate with a lightweight API request | `--network` (optional; login otherwise validates the JWT locally) |
+| validate with a lightweight API request | `--network` — the panel always passes it, so a wrong key fails at onboarding rather than at the first publish |
 | individual key (no issuer ID) | `--key-type individual`; an individual key has no issuer ID |
 | enterprise key (Enterprise Program API) | `--key-type enterprise` |
 | store in a config file instead of the Keychain | `--bypass-keychain` (`bypassKeychain` sets `ASC_BYPASS_KEYCHAIN=1`) |
@@ -147,10 +196,6 @@ Flags the console can pass, and the manual equivalents:
 
 `--name` is optional on the very first login (`asc` stores it as `default`); once a profile exists,
 `--name` is required and `asc` lists the existing profiles in its error.
-
-There is also a drag-and-drop path (`auth.importKey`): the Host writes the PEM to a temporary file
-with mode `0600`, runs `asc auth login --private-key <tmp>`, and deletes the file in a `finally`
-block. The PEM is never persisted by the plugin, never logged, and never echoed back.
 
 ### 2c. Where the credentials go
 

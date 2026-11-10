@@ -2,11 +2,13 @@
 
 An App Store Connect console for DeepSeek Harness: the post-coding half of shipping an iOS app,
 in the side panel next to the session that built it. Install the engine, sign in with an App Store
-Connect API key, send a build to TestFlight, submit a release for review, read sales — and let the
-agent do the same through the `asc_hub` tool.
+Connect API key, watch the latest builds, send one to TestFlight — and let the agent do everything
+else through the same dispatcher, exposed as the `asc_hub` tool.
 
 > **Version 0.1.0** — the first stable release. See [CHANGELOG.md](CHANGELOG.md). Verified against
-> DeepSeek Harness 0.2.2-rc.1 and `asc` 6.5.3.
+> DeepSeek Harness 0.2.2-rc.1 (`engines.dsh: >=0.2.2-rc.1 <0.3.0`) and `asc` 6.5.3. Releases and the
+> upgrade path are an npm publish: [docs/RELEASING.md](docs/RELEASING.md). Until the first publish
+> lands, install from this checkout instead of the registry.
 
 `dsh-asc-hub` **inherits [`asc`](https://github.com/rorkai/App-Store-Connect-CLI) as an external
 engine**. It does not fork, vendor or absorb the CLI. The plugin owns the console, the state machine
@@ -18,18 +20,20 @@ command surface. Upgrading `asc` upgrades the product's capabilities.
 - **Engine onboarding.** Detects an installed `asc` (configured path → `PATH` → `/opt/homebrew/bin/asc`
   → `/usr/local/bin/asc` → `~/.local/bin/asc`), reads its version from `asc version`, and installs it
   on request through Homebrew or the official install script.
-- **Sign-in without a password, panel-only.** The human enters the API key id, issuer id and `.p8`
-  path in the panel; the Host hands them to `asc auth login`, and `asc` stores the key in the macOS
-  Keychain. The plugin never asks for the Apple ID password, never persists key material, and the
-  model cannot run the sign-in (`CLIENT_ONLY`).
+- **Sign-in without a password, panel-only.** The human drops the downloaded `.p8` on the panel and
+  types the key id and issuer id; the Host writes the PEM to a private `0600` file, hands it to
+  `asc auth login --network` and deletes it, so `asc` keeps the credential in the macOS Keychain. The
+  plugin never asks for the Apple ID password, never persists key material, and the model cannot run
+  the sign-in (`CLIENT_ONLY`). A verified sign-in shows **Verified** with one word — **Undo** — to
+  take it back.
 - **Apps.** Lists App Store Connect apps and remembers the selection per browser.
-- **Builds.** Recent builds with processing state; upload an `.ipa`; wait for processing to finish.
-- **TestFlight.** List beta groups, distribute a processed build to groups, write "What to Test"
-  notes, and submit a build for beta app review.
-- **Release.** Readiness report with blockers, release status, and submission for App Store review
-  behind an explicit confirmation.
-- **Sales and analytics.** A sales summary per app for a day or a week (vendor-scoped, as Apple's
-  reports are), plus the account's analytics report requests.
+- **Builds.** The three most recent builds, each read the way Xcode names it (`1.0.5 (2)`) with its
+  processing state in words.
+- **TestFlight.** Lists beta groups and distributes the latest processed build to the selected ones
+  with a "What to Test" note.
+- **Everything else lives in the Host.** Uploading an `.ipa`, beta-review submission, App Store
+  submission, readiness, sales and analytics are implemented once in the dispatcher and remain
+  available to the `asc_hub` tool and the `asc` CLI; the panel cards for them are parked for now.
 - **One status trigger.** The session header shows `asc: start | ready | build | review | error` —
   anything before onboarding finishes reads `asc: start`, derived from the live engine, credential and operation state.
 - **The same operations for the agent.** Reads, engine installation and publishing are exposed as the
@@ -55,12 +59,22 @@ Architecture, transport and the state machine: [docs/ARCHITECTURE.md](docs/ARCHI
 Requirements: DeepSeek Harness with plugin support (this build), the Harness Web GUI or Desktop app,
 macOS, and an Apple Developer Program account with App Store Connect access.
 
-1. Install the bundle: use the Plugin Manager UI, or `plugin_manager` → `install_bundle` with the
-   absolute path to this checkout. Enable the `asc-hub` row.
-2. Open the **ASC Hub** tab in the right sidebar (the plugin row itself is titled "App Store release
-   console" in the Plugin Manager; both titles follow the Harness locale).
+1. Install the bundle. From the registry — **Plugins → Add plugin**, package `dsh-asc-hub` (add
+   `@0.2.0` to pin a version) — or through an agent, `plugin_manager` → `install_bundle` with the spec
+   `dsh-asc-hub`. On a CLI-managed profile (the Desktop app's own profile belongs to the app shell)
+   the equivalent is `dsh plugin --profile <profile> add dsh-asc-hub`. **Discover** works too once the
+   market catalog lists the package: Discover searches a curated index, not npm, so a fresh release
+   is not findable there until it is listed. To run a checkout instead, `install_bundle` with this
+   directory's absolute path — that is a `link:` install, kept for development and deliberately not
+   updatable in place.
+2. Enable the `asc-hub` row if it is not on yet, then open the **ASC Hub** tab in the right sidebar
+   (the plugin row itself is titled "App Store Connect Hub" in the Plugin Manager; both titles
+   follow the Harness locale).
 3. Onboard: install the engine, then sign in. Both steps are **local actions and work in the default
    `read-only` mode** — only App Store Connect publishing needs `mode: write`.
+4. Upgrade later from **Plugins → Installed →** this bundle → **Versions** → **Update**. A `link:`
+   install shows no Versions section: pull the checkout and restart the app instead. The full
+   matrix — npm, CLI, `plugin_manager`, link, git — is in [docs/RELEASING.md](docs/RELEASING.md).
 
 The row configuration lives in your profile's `cordis.patch.yml`:
 
@@ -185,6 +199,9 @@ console has not modeled yet arrive with the next plugin release. See
   not on requests).
 - More inherited surfaces: metadata, screenshots, pricing.
 - Multiple accounts or teams (`asc --profile`) from one panel.
+- A registry-backed check behind the footer's update tag (today `status.update` is a constant, and
+  **Plugins → Installed** owns both the notice and the action — see
+  [docs/RELEASING.md](docs/RELEASING.md)).
 
 ## License
 

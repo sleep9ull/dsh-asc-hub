@@ -54,11 +54,13 @@
     "release"
   ],
   "engines": {
-    "node": ">=22"
+    "node": ">=22",
+    "dsh": ">=0.2.2-rc.1 <0.3.0"
   },
   "scripts": {
     "test": "node --test test/*.test.js",
-    "check": "node --check index.js && node --check client.js"
+    "check": "node --check index.js && node --check client.js",
+    "prepublishOnly": "npm run check && npm test"
   },
   "author": "sleep9ull",
   "homepage": "https://github.com/sleep9ull/dsh-asc-hub#readme",

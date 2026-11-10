@@ -10,10 +10,34 @@
  */
 
 import { createAsc } from './asc.js'
+import { readFileSync } from 'node:fs'
 import { createAuth } from './auth.js'
 import { createEngine } from './engine.js'
+import { createBuild } from './build.js'
 import { createOps } from './ops.js'
 import { redact } from './redact.js'
+import { detectSkills, installSkills, parseShippedRef, sameRef } from './skills.js'
+import { createWorkspace } from './workspace.js'
+
+/** This plugin's own version, read once from the package manifest. */
+const HUB_VERSION = (() => {
+  try {
+    const manifest = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'))
+    return typeof manifest.version === 'string' ? manifest.version : ''
+  } catch {
+    return ''
+  }
+})()
+
+/**
+ * Whether a newer build of either half is known. Nothing probes a release feed yet,
+ * so this is always "no"; the shape is what the footer reserves space for.
+ * @returns {{ available: boolean, scope: 'hub' | 'core' | null, latest: string | null }}
+ */
+function knownUpdate() {
+  return { available: false, scope: null, latest: null }
+}
+
 
 /** An error that is safe to serialize to the client. */
 export class HubError extends Error {
@@ -89,11 +113,53 @@ function labelFor(phase, operation) {
  * @param {any} ctx Host context
  * @param {ReturnType<import('./config.js').normalizeConfig>} config
  */
-export function createHub(ctx, config) {
+export function createHub(ctx, rawConfig) {
+  // A private, editable copy: `normalizeConfig` freezes its result, and the footer's
+  // mode switch has to change `mode` for this process without touching the row config.
+  const config = { ...rawConfig }
   const asc = createAsc(ctx, config)
   const engine = createEngine(ctx, config, asc)
   const auth = createAuth(ctx, config, asc, engine)
   const ops = createOps(ctx, config, asc, engine)
+  const workspace = createWorkspace(ctx, config)
+  const build = createBuild(ctx, config, asc, engine)
+
+  /** Where this session works, plus what that directory can build. */
+  async function readWorkspace(input, options) {
+    const info = await workspace.info(input, options)
+    return { ...info, build: await build.facts(info.cwd) }
+  }
+
+  /** The pin the installed engine ships, parsed once per engine build. */
+  let shippedSkills = { key: null, ref: null }
+  async function shippedSkillsRef() {
+    const state = await engine.detect()
+    if (!state.installed || !state.path) return null
+    const key = `${state.path}@${state.version ?? ''}`
+    if (shippedSkills.key === key) return shippedSkills.ref
+    const result = await asc.run(['install-skills', '--help'], {
+      path: state.path,
+      output: false,
+      local: true,
+      timeoutMs: 15_000,
+    })
+    const ref = result.exitCode === 0 ? parseShippedRef(`${result.stdout}\n${result.stderr}`) : null
+    shippedSkills = { key, ref }
+    return ref
+  }
+
+  /**
+   * The inherited pack, plus whether the engine now ships a newer one. The pin is
+   * read from the engine itself, so "there is an update" is a fact, not a guess.
+   */
+  async function readSkills() {
+    const state = await detectSkills()
+    if (!state.installed || typeof state.ref !== 'string') {
+      return { ...state, shippedRef: null, update: false }
+    }
+    const shipped = await shippedSkillsRef()
+    return { ...state, shippedRef: shipped, update: shipped !== null && !sameRef(state.ref, shipped) }
+  }
 
   /** @type {{ id: string, kind: string, startedAt: string } | null} */
   let operation = null
@@ -118,14 +184,78 @@ export function createHub(ctx, config) {
     'auth.importKey': { kind: 'local-write', clientOnly: true, run: (input, options) => auth.importKey(input, options) },
     'auth.logout': { kind: 'local-write', clientOnly: true, run: (input, options) => auth.logout(input, options) },
     'auth.switch': { kind: 'local-write', clientOnly: true, run: (input, options) => auth.switchProfile(input, options) },
-    'apps.list': { kind: 'read', run: (input, options) => ops.listApps(input, options) },
-    'builds.list': { kind: 'read', run: (input, options) => ops.listBuilds(input, options) },
+    // Session-scoped mode switch for the panel's footer. It flips this process's
+    // gating and the flags handed to asc; it is deliberately not persisted, so the
+    // config row still decides what the next start does.
+    'mode.set': {
+      kind: 'local-write',
+      clientOnly: true,
+      run: (input) => {
+        const next = input !== null && typeof input === 'object' && typeof input.mode === 'string' ? input.mode : ''
+        if (next !== 'read-only' && next !== 'write') {
+          throw new HubError('INVALID_INPUT', '`mode` must be "read-only" or "write".')
+        }
+        config.mode = next
+        return status()
+      },
+    },
+    // The footer's update tag. The core half can be reinstalled from here; the plugin
+    // half belongs to the Plugin Manager, which owns installation, so it says so.
+    'update.apply': {
+      kind: 'local-write',
+      skipConfirm: true,
+      clientOnly: true,
+      run: async (input, options) => {
+        const scope = input !== null && typeof input === 'object' && typeof input.scope === 'string' ? input.scope : ''
+        if (scope === 'core') return engine.install('brew', options)
+        throw new HubError(
+          'MANUAL_UPDATE_REQUIRED',
+          'Update dsh-asc-hub from the Plugin Manager: it owns installation and versions.',
+        )
+      },
+    },
+    // The inherited skill pack: detect what `asc install-skills` put on this machine,
+    // and run that same installer on request. Both are local — no App Store Connect.
+    'skills.detect': { kind: 'read', run: () => readSkills() },
+    'skills.install': {
+      kind: 'local-write',
+      skipConfirm: true,
+      quiet: true,
+      run: async (input, options) => installSkills({
+        run: (argv, request) => asc.run(argv, {
+          output: false,
+          local: true,
+          timeoutMs: request.deadlineMs,
+          signal: options.signal,
+        }),
+      }),
+    },
+    // Where this session works: the Harness's effective directory plus the git
+    // facts a person reads at a glance. Panel-only, because the model already knows
+    // its own directory from the system prompt.
+    'workspace.info': { kind: 'read', clientOnly: true, run: (input, options) => readWorkspace(input, options) },
+    // Build the checkout this session is working on: archive, export an .ipa, upload
+    // it and wait for Apple. The unit of work is the directory, never a chosen file.
+    'build.create': {
+      kind: 'write',
+      // Panel-only: the build needs the session's directory, which only the panel
+      // knows. The model can run the same asc commands itself when it means to.
+      clientOnly: true,
+      run: (input, options) => build.create({
+        ...(input !== null && typeof input === 'object' ? input : {}),
+        cwd: workspace.directory(input !== null && typeof input === 'object' ? input.sessionId : undefined),
+      }, options),
+    },
+    'apps.list': { kind: 'read', run: (input, options) => ops.listApps(input, options) },    'builds.list': { kind: 'read', run: (input, options) => ops.listBuilds(input, options) },
     'builds.upload': { kind: 'write', run: (input, options) => ops.uploadBuild(input, options) },
     'testflight.groups': { kind: 'read', run: (input, options) => ops.listGroups(input, options) },
     'testflight.distribute': { kind: 'write', run: (input, options) => ops.distribute(input, options) },
     'testflight.submitBeta': { kind: 'write', run: (input, options) => ops.submitBeta(input, options) },
     'release.readiness': { kind: 'read', run: (input, options) => ops.readiness(input, options) },
     'release.status': { kind: 'read', run: (input, options) => ops.releaseStatus(input, options) },
+    // App Store release of an approved version: the second half of the review flow.
+    'release.versions': { kind: 'read', run: (input, options) => ops.listVersions(input, options) },
+    'release.publish': { kind: 'write', run: (input, options) => ops.publishVersion(input, options) },
     'release.submit': { kind: 'write', run: (input, options) => ops.submitRelease(input, options) },
     'sales.summary': { kind: 'read', run: (input, options) => ops.salesSummary(input, options) },
     'analytics.reports': { kind: 'read', run: (input, options) => ops.analyticsReports(input, options) },
@@ -219,6 +349,12 @@ export function createHub(ctx, config) {
       operation,
       lastError,
       mode: config.mode,
+      hub: { version: HUB_VERSION },
+      // Whether the inherited skill pack is on this machine, and whether the engine
+      // ships a newer one; the console shows it in one quiet row and the model learns
+      // it from `status` for free.
+      skills: await readSkills(),
+      update: knownUpdate(),
       checkedAt: new Date().toISOString(),
     }
   }
@@ -254,14 +390,19 @@ export function createHub(ctx, config) {
     if (spec.clientOnly === true && options.caller === 'tool') {
       throw new HubError(
         'CLIENT_ONLY',
-        'Signing in and out is a human action in the ASC Hub panel; ask the user to do it there.',
+        String(action).startsWith('auth.')
+          ? 'Signing in and out is a human action in the ASC Hub panel; ask the user to do it there.'
+          : 'This action belongs to the ASC Hub panel; ask the user to do it there.',
       )
     }
 
     const started = new Date().toISOString()
     // Reads never make the button look busy; installing and signing in do, so the
     // user sees that onboarding is working.
-    const tracked = spec.kind !== 'read'
+    // `quiet` actions still gate, run and report errors, but they do not take over
+    // the trigger's five-word vocabulary (installing the inherited skill pack is
+    // housekeeping, not a build).
+    const tracked = spec.kind !== 'read' && spec.quiet !== true
     if (tracked) {
       operation = { id: `${Date.now()}-${++sequence}`, kind: operationKind(action), startedAt: started }
     }

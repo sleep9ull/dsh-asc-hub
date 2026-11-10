@@ -17,6 +17,7 @@
 import { normalizeConfig } from './host/config.js'
 import { createHub } from './host/dispatch.js'
 import { registerRpc } from './host/rpc.js'
+import { registerSkill } from './host/skill.js'
 import { registerApproval, registerTool } from './host/tool.js'
 
 /** Cordis plugin name; matches the Loader row id in cordis.patch.yml. */
@@ -41,6 +42,10 @@ export function apply(ctx, config) {
 
   const routes = registerRpc(ctx, hub)
 
+  // The skill ships in this package and is registered in memory: a package
+  // directory is not a skill root, so discovery alone would never find it.
+  const skill = registerSkill(ctx) ? 'on' : 'off'
+
   const tools = ctx.get('tools')
   if (tools !== null && tools !== undefined && typeof tools.register === 'function') {
     registerTool(ctx, tools, hub)
@@ -48,6 +53,6 @@ export function apply(ctx, config) {
   }
 
   ctx.logger?.info?.(
-    `asc-hub ready: ${routes} rpc route(s), mode=${resolved.mode}, engine=${resolved.ascPath}`,
+    `asc-hub ready: ${routes} rpc route(s), skill=${skill}, mode=${resolved.mode}, engine=${resolved.ascPath}`,
   )
 }

@@ -132,3 +132,15 @@ asc_hub(action="release.submit", appId="123456789", version="1.2.3", confirm=tru
 
 Submit only when readiness reports no blockers and the user has agreed. A monthly sales roll-up is
 not available: `period` accepts `day` (default) or `week`.
+
+## Where the rest of asc lives
+
+This surface models the shipping funnel: status, apps, builds, TestFlight, release, sales. Everything
+else — metadata, screenshots, signing, pricing, ads, crash triage, workflows — belongs to asc's own
+skill pack. `status` reports it as `skills.installed`: when true, the `asc-*` skills are already in
+the catalog, so use them; when false, tell the user to install the pack (the console has the button,
+or they can run `asc install-skills`).
+
+For upload, TestFlight, submission and the reads the panel shows, prefer `asc_hub` over a raw `asc`
+command: only the tool carries the mode gate, the explicit confirmation and the redaction the user
+was promised in the panel.

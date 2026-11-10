@@ -18,6 +18,7 @@ const INPUT_FIELDS = [
   'date',
   'week',
   'buildId',
+  'versionId',
   'groupNames',
   'groupIds',
   'whatsNew',
@@ -43,18 +44,18 @@ Use this tool after the app is built, to finish shipping it:
 - \`apps.list\`: find the app id and bundle id.
 - \`builds.list\`: recent builds with their processing state. \`builds.upload\`: upload an .ipa.
 - \`testflight.groups\`: beta groups. \`testflight.distribute\`: add a build to groups (optionally writing the "What to Test" note). \`testflight.submitBeta\`: submit a build for beta review.
-- \`release.readiness\`: the canonical submission readiness check and its blockers. \`release.status\`: current review state. \`release.submit\`: submit the version for App Review.
+- \`release.readiness\`: the canonical submission readiness check and its blockers. \`release.status\`: the version state and the review state. \`release.submit\`: submit the version for App Review. \`release.versions\`: the App Store versions with the build each carries (which is how you know whether a build has been reviewed). \`release.publish\`: release a version App Review already approved (\`PENDING_DEVELOPER_RELEASE\`).
 - \`sales.summary\`: sales for a day or a week (needs the Vendor number). \`analytics.reports\`: analytics report requests.
 - \`run\`: READ-ONLY escape hatch for an asc argv this surface does not cover yet. It always runs with asc's own read-only switch on, in every mode.
 
-Read actions run immediately. Publishing actions (builds.upload, testflight.distribute, testflight.submitBeta, release.submit) need the plugin in \`mode: write\`, an explicit \`confirm: true\`, and a human approval; without approval they fail closed. Report the returned \`code\` to the user and follow its remedy instead of retrying blindly.`
+Read actions run immediately. Publishing actions (builds.upload, testflight.distribute, testflight.submitBeta, release.submit, release.publish) need the plugin in \`mode: write\`, an explicit \`confirm: true\`, and a human approval; without approval they fail closed. Report the returned \`code\` to the user and follow its remedy instead of retrying blindly.`
 
 const PARAMETERS = {
   action: {
     type: 'string',
     required: true,
     description:
-      'The operation to run: status, engine.detect, engine.install, auth.status, auth.doctor, apps.list, builds.list, builds.upload, testflight.groups, testflight.distribute, testflight.submitBeta, release.readiness, release.status, release.submit, sales.summary, analytics.reports, run.',
+      'The operation to run: status, engine.detect, engine.install, auth.status, auth.doctor, apps.list, builds.list, builds.upload, testflight.groups, testflight.distribute, testflight.submitBeta, release.readiness, release.status, release.submit, release.publish, release.versions, sales.summary, analytics.reports, run.',
   },
   appId: { type: 'string', description: 'App Store Connect app id (falls back to the configured default).' },
   vendorNumber: {

@@ -1,6 +1,6 @@
 {
   "meta": {
-    "title": "App Store 发布控制台",
+    "title": "App Store Connect 控制台",
     "description": "安装并继承 asc CLI，通过 macOS 钥匙串登录，然后在侧边面板里发布 TestFlight、提交审核并查看销售数据。"
   }
 }

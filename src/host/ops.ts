@@ -8,31 +8,123 @@
 
 import { field, pickArray } from './asc.js'
 import { redact } from './redact.js'
+import type {
+  AscMust,
+  AscOutcome,
+  AscRunner,
+  CallOptions,
+  EngineDetector,
+  HostContext,
+  HubConfig,
+} from './types.js'
+import { hostError, isRecord } from './types.js'
 
-function fail(code, message, detail) {
-  const error = new Error(message)
-  error.code = code
-  error.detail = detail
-  throw error
+/** The config slice App Store operations read. */
+type OpsConfig = Pick<HubConfig, 'defaultAppId' | 'vendorNumber'>
+
+function fail(code: string, message: string, detail?: string): never {
+  throw hostError(code, message, detail)
 }
 
-function requireApp(input, config) {
+function requireApp(input: Record<string, unknown>, config: OpsConfig): string {
   const appId = input.appId ?? config.defaultAppId
   if (!appId) fail('APP_NOT_SELECTED', 'Choose an app first.')
   return String(appId)
 }
 
-function log(result) {
+function log(result: AscOutcome): string {
   return redact(`${result.stdout}\n${result.stderr}`).trim()
 }
 
+/** One `builds` row, as the panel and the model read it. */
+export interface BuildRow {
+  id: string
+  version: string
+  buildNumber: string
+  processingState: string
+  /** asc's own timestamp string; display only. */
+  uploadedDate: unknown
+  expired: boolean
+  internal: boolean
+  external: boolean
+  internalBuildState: string | null
+  externalBuildState: string | null
+}
+
+/** One TestFlight group. */
+export interface GroupRow {
+  id: string
+  name: unknown
+  internal: boolean
+  publicLink: unknown
+  testerCount: unknown
+}
+
+/** One submission blocker. */
+export interface Blocker {
+  code: string
+  message: string
+  detail?: string
+}
+
+/** One App Store version and the build it carries. */
+export interface VersionRow {
+  id: string
+  version: string
+  state: string
+  buildId: string | null
+  createdDate: unknown
+}
+
+/** The operation surface the dispatcher owns. */
+export interface Ops {
+  listApps(input: Record<string, unknown>, options?: CallOptions): Promise<{ apps: Array<Record<string, unknown>> }>
+  listBuilds(input: Record<string, unknown>, options?: CallOptions): Promise<{ builds: BuildRow[] }>
+  uploadBuild(input: Record<string, unknown>, options?: CallOptions): Promise<{ log: string; buildId: unknown }>
+  listGroups(input: Record<string, unknown>, options?: CallOptions): Promise<{ groups: GroupRow[] }>
+  distribute(input: Record<string, unknown>, options?: CallOptions): Promise<{ log: string }>
+  submitBeta(input: Record<string, unknown>, options?: CallOptions): Promise<{ log: string }>
+  readiness(input: Record<string, unknown>, options?: CallOptions): Promise<{
+    ready: boolean
+    blockers: Blocker[]
+    warnings: number
+    version: unknown
+    raw: unknown
+  }>
+  releaseStatus(input: Record<string, unknown>, options?: CallOptions): Promise<{
+    version: unknown
+    versionId: unknown
+    versionState: unknown
+    reviewState: unknown
+    state: unknown
+    buildNumber: unknown
+    submittedDate: unknown
+    raw: unknown
+  }>
+  publishVersion(input: Record<string, unknown>, options?: CallOptions): Promise<{
+    versionId: string
+    released: true
+    raw: unknown
+  }>
+  listVersions(input: Record<string, unknown>, options?: CallOptions): Promise<{ versions: VersionRow[] }>
+  submitRelease(input: Record<string, unknown>, options?: CallOptions): Promise<{ log: string }>
+  salesSummary(input: Record<string, unknown>, options?: CallOptions): Promise<{
+    period: string
+    date: unknown
+    totals: unknown
+    rows: Array<Record<string, unknown>>
+    raw: unknown
+  }>
+  analyticsReports(input: Record<string, unknown>, options?: CallOptions): Promise<{ requests: unknown[]; raw: true }>
+}
+
 /** Index one ASC response's `included` array by `type:id`. */
-export function indexIncluded(json) {
-  const included = json && Array.isArray(json.included) ? json.included : []
-  const index = new Map()
+export function indexIncluded(json: unknown): Map<string, unknown> {
+  const included = json && isRecord(json) && Array.isArray(json.included) ? json.included : []
+  const index = new Map<string, unknown>()
   for (const item of included) {
     if (!item || typeof item !== 'object') continue
-    const type = typeof item.type === 'string' ? item.type : ''
+    const type = isRecord(item) && typeof item.type === 'string' ? item.type : ''
     const id = field(item, 'id')
     if (type === '' || id === undefined || id === null || id === '') continue
     index.set(`${type}:${String(id)}`, item)
@@ -41,17 +133,17 @@ export function indexIncluded(json) {
 }
 
 /** The id of a to-one relationship, e.g. `preReleaseVersion`. */
-function relationshipId(entry, name) {
+function relationshipId(entry: unknown, name: string): string {
   const id = field(entry, `relationships.${name}.data.id`)
   return id === undefined || id === null || id === '' ? '' : String(id)
 }
 
 /** The ids of a to-many relationship, e.g. `betaGroups`. */
-function relationshipIds(entry, name) {
+function relationshipIds(entry: unknown, name: string): string[] {
   const data = field(entry, `relationships.${name}.data`)
   if (!Array.isArray(data)) return []
   return data
-    .map((item) => (item && item.id !== undefined && item.id !== null ? String(item.id) : ''))
+    .map((item) => (isRecord(item) && item.id !== undefined && item.id !== null ? String(item.id) : ''))
     .filter((id) => id !== '')
 }
 
@@ -66,12 +158,9 @@ const BETA_LIVE = /^(READY_FOR_BETA_TESTING|IN_BETA_TESTING)$/
  * resource, and both TestFlight audiences live on the included
  * `buildBetaDetails` and `betaGroups` resources, which is why `builds.list`
  * asks asc for those includes.
- *
- * @param {any} entry one resource from `data`
- * @param {Map<string, any>} included
  */
-export function normalizeBuild(entry, included) {
-  const lookup = (relationship, type) => {
+export function normalizeBuild(entry: unknown, included: Map<string, unknown>): BuildRow {
+  const lookup = (relationship: string, type: string) => {
     const id = relationshipId(entry, relationship)
     return id === '' ? null : included.get(`${type}:${id}`) ?? null
   }
@@ -79,13 +168,13 @@ export function normalizeBuild(entry, included) {
   const detail = lookup('buildBetaDetail', 'buildBetaDetails')
   const groups = relationshipIds(entry, 'betaGroups')
     .map((id) => included.get(`betaGroups:${id}`))
-    .filter(Boolean)
+    .filter((group): group is NonNullable<typeof group> => group !== null && group !== undefined)
   const audiences = groups
     .map((group) => field(group, 'attributes.isInternalGroup'))
     .filter((flag) => typeof flag === 'boolean')
   const internalState = field(detail, 'attributes.internalBuildState')
   const externalState = field(detail, 'attributes.externalBuildState')
-  const live = (state) => typeof state === 'string' && BETA_LIVE.test(state.toUpperCase())
+  const live = (state: unknown) => typeof state === 'string' && BETA_LIVE.test(state.toUpperCase())
   return {
     id: String(field(entry, 'id') ?? ''),
     version: String(field(preRelease, 'attributes.version') ?? field(preRelease, 'version') ?? ''),
@@ -103,32 +192,32 @@ export function normalizeBuild(entry, included) {
 }
 
 /** `asc builds list --output json` → the contract's `{ builds }`. */
-export function normalizeBuilds(json) {
+export function normalizeBuilds(json: unknown): BuildRow[] {
   const included = indexIncluded(json)
   return pickArray(json, ['builds', 'data'])
     .map((entry) => normalizeBuild(entry, included))
     .filter((build) => build.id !== '')
 }
 
-/**
- * @param {any} ctx
- * @param {{ defaultAppId: string|null, vendorNumber?: string|null }} config
- * @param {ReturnType<import('./asc.js').createAsc>} asc
- * @param {{ detect: Function }} engine
- */
-export function createOps(ctx, config, asc, engine) {
-  async function binary() {
+export function createOps(
+  ctx: HostContext,
+  config: OpsConfig,
+  asc: AscRunner & AscMust,
+  engine: EngineDetector,
+): Ops {
+  async function binary(): Promise<string> {
     const state = await engine.detect()
     if (!state.installed || !state.path) {
-      const error = new Error('The asc engine is not installed.')
-      error.code = 'ASC_NOT_INSTALLED'
-      throw error
+      throw hostError('ASC_NOT_INSTALLED', 'The asc engine is not installed.')
     }
     return state.path
   }
 
   // ---------------------------------------------------------------- apps ----
-  async function listApps(input = {}, options = {}) {
+  async function listApps(
+    input: Record<string, unknown> = {},
+    options: CallOptions = {},
+  ): Promise<{ apps: Array<Record<string, unknown>> }> {
     const path = await binary()
     const argv = ['apps', 'list', '--limit', String(Math.min(Math.max(Number(input.limit) || 50, 1), 200))]
     if (input.name) argv.push('--name', String(input.name))
@@ -145,7 +234,10 @@ export function createOps(ctx, config, asc, engine) {
   }
 
   // -------------------------------------------------------------- builds ----
-  async function listBuilds(input, options = {}) {
+  async function listBuilds(
+    input: Record<string, unknown>,
+    options: CallOptions = {},
+  ): Promise<{ builds: BuildRow[] }> {
     const path = await binary()
     const appId = requireApp(input, config)
     const limit = Math.min(Math.max(Number(input.limit) || 10, 1), 50)
@@ -170,7 +262,10 @@ export function createOps(ctx, config, asc, engine) {
     return { builds: normalizeBuilds(result.json) }
   }
 
-  async function uploadBuild(input, options = {}) {
+  async function uploadBuild(
+    input: Record<string, unknown>,
+    options: CallOptions = {},
+  ): Promise<{ log: string; buildId: unknown }> {
     const path = await binary()
     const appId = requireApp(input, config)
     const argv = ['builds', 'upload', '--app', appId, '--ipa', String(input.ipaPath)]
@@ -186,11 +281,17 @@ export function createOps(ctx, config, asc, engine) {
       fail('ASC_FAILED', 'The build upload failed.', log(result))
     }
     const json = result.json ?? {}
-    return { log: log(result), buildId: field(json, 'buildId') ?? field(json, 'receipt.buildId') ?? undefined }
+    return {
+      log: log(result),
+      buildId: field(json, 'buildId') ?? field(json, 'receipt.buildId') ?? undefined,
+    }
   }
 
   // ---------------------------------------------------------- testflight ----
-  async function listGroups(input, options = {}) {
+  async function listGroups(
+    input: Record<string, unknown>,
+    options: CallOptions = {},
+  ): Promise<{ groups: GroupRow[] }> {
     const path = await binary()
     const appId = requireApp(input, config)
     const result = await asc.must(['testflight', 'groups', 'list', '--app', appId], {
@@ -208,7 +309,10 @@ export function createOps(ctx, config, asc, engine) {
     return { groups }
   }
 
-  async function distribute(input, options = {}) {
+  async function distribute(
+    input: Record<string, unknown>,
+    options: CallOptions = {},
+  ): Promise<{ log: string }> {
     const path = await binary()
     requireApp(input, config)
     if (!input.buildId) fail('INVALID_INPUT', 'Choose a build to distribute.')
@@ -255,33 +359,46 @@ export function createOps(ctx, config, asc, engine) {
    * only on the name: an external group needs a beta review submission before its
    * testers see anything, an internal one does not.
    */
-  async function resolveGroups(input, options = {}) {
+  async function resolveGroups(
+    input: Record<string, unknown>,
+    options: CallOptions = {},
+  ): Promise<GroupRow[]> {
     const ids = Array.isArray(input.groupIds) ? input.groupIds.map(String) : []
     const names = Array.isArray(input.groupNames) ? input.groupNames.map(String) : []
     if (ids.length === 0 && names.length === 0) return []
     const { groups } = await listGroups({ ...input }, options)
     if (ids.length > 0) {
-      const byId = new Map(groups.map((group) => [String(group.id), group]))
-      const picked = ids.map((id) => byId.get(id)).filter(Boolean)
+      const byId = new Map(groups.map((group) => [String(group.id), group] as const))
+      const picked = ids
+        .map((id) => byId.get(id))
+        .filter((group): group is GroupRow => group !== undefined)
       if (picked.length !== ids.length) {
         fail('INVALID_INPUT', 'One of the selected TestFlight groups no longer exists; refresh the group list.')
       }
       return picked
     }
-    const byName = new Map(groups.map((group) => [String(group.name), group]))
-    const picked = names.map((name) => byName.get(name)).filter(Boolean)
+    const byName = new Map(groups.map((group) => [String(group.name), group] as const))
+    const picked = names
+      .map((name) => byName.get(name))
+      .filter((group): group is GroupRow => group !== undefined)
     if (picked.length !== names.length) {
       fail('INVALID_INPUT', 'One of the selected TestFlight groups no longer exists; refresh the group list.')
     }
     return picked
   }
 
-  async function normalizeGroups(input, options = {}) {
+  async function normalizeGroups(
+    input: Record<string, unknown>,
+    options: CallOptions = {},
+  ): Promise<unknown[]> {
     const picked = await resolveGroups(input, options)
     return picked.map((group) => group.name)
   }
 
-  async function submitBeta(input, options = {}) {
+  async function submitBeta(
+    input: Record<string, unknown>,
+    options: CallOptions = {},
+  ): Promise<{ log: string }> {
     const path = await binary()
     if (!input.buildId) fail('INVALID_INPUT', 'Choose a build to submit for beta review.')
     const result = await asc.run(
@@ -295,7 +412,10 @@ export function createOps(ctx, config, asc, engine) {
   }
 
   // -------------------------------------------------------------- review ----
-  async function readiness(input, options = {}) {
+  async function readiness(
+    input: Record<string, unknown>,
+    options: CallOptions = {},
+  ): Promise<{ ready: boolean; blockers: Blocker[]; warnings: number; version: unknown; raw: unknown }> {
     const path = await binary()
     const appId = requireApp(input, config)
     const argv = ['validate', '--app', appId]
@@ -325,7 +445,7 @@ export function createOps(ctx, config, asc, engine) {
    * for a hard error, and the older `blockers`/`issues` lists stay accepted so a future
    * asc keeps working. Warnings are counted but never block.
    */
-  function collectBlockers(json) {
+  function collectBlockers(json: unknown): Blocker[] {
     const steps = pickArray(field(json, 'remediation') ?? {}, ['steps'])
     const blocking = steps.filter((step) => field(step, 'blocking') === true)
     if (blocking.length > 0) return normalize(blocking)
@@ -338,7 +458,7 @@ export function createOps(ctx, config, asc, engine) {
     ]
     return normalize(legacy)
 
-    function normalize(entries) {
+    function normalize(entries: unknown[]): Blocker[] {
       return entries.slice(0, 40).map((entry) => ({
         code: String(field(entry, 'checkId') ?? field(entry, 'code') ?? field(entry, 'id') ?? 'BLOCKER'),
         message: String(field(entry, 'message') ?? field(entry, 'title') ?? ''),
@@ -348,13 +468,25 @@ export function createOps(ctx, config, asc, engine) {
   }
 
   /** How many non-blocking warnings the same report carries. */
-  function countWarnings(json) {
+  function countWarnings(json: unknown): number {
     const steps = pickArray(field(json, 'remediation') ?? {}, ['steps'])
     return steps.filter((step) => field(step, 'blocking') !== true
       && String(field(step, 'severity') ?? '').toLowerCase() === 'warning').length
   }
 
-  async function releaseStatus(input, options = {}) {
+  async function releaseStatus(
+    input: Record<string, unknown>,
+    options: CallOptions = {},
+  ): Promise<{
+    version: unknown
+    versionId: unknown
+    versionState: unknown
+    reviewState: unknown
+    state: unknown
+    buildNumber: unknown
+    submittedDate: unknown
+    raw: unknown
+  }> {
     const path = await binary()
     const appId = requireApp(input, config)
     const result = await asc.run(
@@ -384,7 +516,10 @@ export function createOps(ctx, config, asc, engine) {
    * `asc versions release` is the mutating call; the Host supplies `--confirm` only
    * after the panel's gate passed, exactly like every other destructive command.
    */
-  async function publishVersion(input, options = {}) {
+  async function publishVersion(
+    input: Record<string, unknown>,
+    options: CallOptions = {},
+  ): Promise<{ versionId: string; released: true; raw: unknown }> {
     const path = await binary()
     const versionId = typeof input.versionId === 'string' ? input.versionId.trim() : ''
     if (versionId === '') fail('INVALID_INPUT', 'A version id is required to release a version.')
@@ -407,7 +542,10 @@ export function createOps(ctx, config, asc, engine) {
    * App Review applies to a version, and a version's state says whether it got
    * through. A build that no version carries never went to review at all.
    */
-  async function listVersions(input, options = {}) {
+  async function listVersions(
+    input: Record<string, unknown>,
+    options: CallOptions = {},
+  ): Promise<{ versions: VersionRow[] }> {
     const path = await binary()
     const appId = requireApp(input, config)
     const result = await asc.run(
@@ -430,7 +568,10 @@ export function createOps(ctx, config, asc, engine) {
     return { versions }
   }
 
-  async function submitRelease(input, options = {}) {
+  async function submitRelease(
+    input: Record<string, unknown>,
+    options: CallOptions = {},
+  ): Promise<{ log: string }> {
     const path = await binary()
     const appId = requireApp(input, config)
     let buildId = input.buildId
@@ -468,7 +609,16 @@ export function createOps(ctx, config, asc, engine) {
   }
 
   // --------------------------------------------------------------- sales ----
-  async function salesSummary(input, options = {}) {
+  async function salesSummary(
+    input: Record<string, unknown>,
+    options: CallOptions = {},
+  ): Promise<{
+    period: string
+    date: unknown
+    totals: unknown
+    rows: Array<Record<string, unknown>>
+    raw: unknown
+  }> {
     const path = await binary()
     const appId = requireApp(input, config)
     const vendor = input.vendorNumber ?? config.vendorNumber
@@ -500,7 +650,17 @@ export function createOps(ctx, config, asc, engine) {
     return normalizeSales(period, input.date, result.json)
   }
 
-  function normalizeSales(period, date, json) {
+  function normalizeSales(
+    period: string,
+    date: unknown,
+    json: unknown,
+  ): {
+    period: string
+    date: unknown
+    totals: unknown
+    rows: Array<Record<string, unknown>>
+    raw: unknown
+  } {
     const rows = pickArray(json, ['rows', 'days', 'series'])
       .slice(0, 60)
       .map((entry) => ({
@@ -523,7 +683,10 @@ export function createOps(ctx, config, asc, engine) {
     }
   }
 
-  async function analyticsReports(input, options = {}) {
+  async function analyticsReports(
+    input: Record<string, unknown>,
+    options: CallOptions = {},
+  ): Promise<{ requests: unknown[]; raw: true }> {
     const path = await binary()
     const appId = requireApp(input, config)
     const result = await asc.run(['analytics', 'requests', '--app', appId, '--paginate'], {
@@ -555,8 +718,11 @@ export function createOps(ctx, config, asc, engine) {
   }
 }
 
-function firstLine(text) {
+function firstLine(text: string): string | undefined {
   if (typeof text !== 'string') return undefined
-  const line = text.split('\n').map((item) => item.trim()).find((item) => item !== '')
+  const line = text
+    .split('\n')
+    .map((item) => item.trim())
+    .find((item) => item !== '')
   return line ? redact(line).slice(0, 400) : undefined
 }

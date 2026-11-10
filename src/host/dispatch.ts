@@ -12,41 +12,55 @@
 import { createAsc } from './asc.js'
 import { readFileSync } from 'node:fs'
 import { createAuth } from './auth.js'
+import type { Auth, AuthState } from './auth.js'
 import { createEngine } from './engine.js'
+import type { EngineState } from './types.js'
 import { createBuild } from './build.js'
+import type { Build, BuildFacts } from './build.js'
 import { createOps } from './ops.js'
+import type { Ops } from './ops.js'
 import { redact } from './redact.js'
 import { detectSkills, installSkills, parseShippedRef, sameRef } from './skills.js'
+import type { SkillPackState } from './skills.js'
 import { createWorkspace } from './workspace.js'
+import type { Workspace, WorkspaceInfo } from './workspace.js'
+import type { AscMode, CallContext, CallOptions, HostContext, HubConfig } from './types.js'
+import { errorCode, errorDetail, errorMessage, isRecord } from './types.js'
 
 /** This plugin's own version, read once from the package manifest. */
 const HUB_VERSION = (() => {
   try {
-    const manifest = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'))
-    return typeof manifest.version === 'string' ? manifest.version : ''
+    // dist/host/ -> the package root, so the manifest travels with the build.
+    const manifest: unknown = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8'))
+    return isRecord(manifest) && typeof manifest.version === 'string' ? manifest.version : ''
   } catch {
     return ''
   }
 })()
 
+/** The update slot the footer reserves space for. */
+export interface KnownUpdate {
+  available: boolean
+  scope: 'hub' | 'core' | null
+  latest: string | null
+}
+
 /**
  * Whether a newer build of either half is known. Nothing probes a release feed yet,
  * so this is always "no"; the shape is what the footer reserves space for.
- * @returns {{ available: boolean, scope: 'hub' | 'core' | null, latest: string | null }}
  */
-function knownUpdate() {
+function knownUpdate(): KnownUpdate {
   return { available: false, scope: null, latest: null }
 }
 
-
 /** An error that is safe to serialize to the client. */
 export class HubError extends Error {
-  /**
-   * @param {string} code stable machine code
-   * @param {string} message safe to show
-   * @param {string | undefined} detail raw child output (redacted on the way out)
-   */
-  constructor(code, message, detail) {
+  /** Stable machine code from docs/CONTRACT.md §Errors. */
+  readonly code: string
+  /** Raw child output (redacted on the way out). */
+  readonly detail: string | undefined
+
+  constructor(code: string, message: string, detail?: string) {
     super(message)
     this.name = 'HubError'
     this.code = code
@@ -54,15 +68,13 @@ export class HubError extends Error {
   }
 }
 
-function asHubError(error) {
+function asHubError(error: unknown): HubError {
   if (error instanceof HubError) return error
-  const code = typeof error?.code === 'string' ? error.code : 'ASC_FAILED'
-  const message = typeof error?.message === 'string' ? error.message : 'The asc operation failed.'
-  return new HubError(code, redact(message).slice(0, 600), error?.detail)
-}
-
-function isRecord(value) {
-  return value !== null && typeof value === 'object' && !Array.isArray(value)
+  const code = errorCode(error) ?? 'ASC_FAILED'
+  const message = errorMessage(error) ?? 'The asc operation failed.'
+  // The detail is whatever the thrown value carried; `errorDetail` proves the
+  // string case, which is the only one the wire envelope can carry.
+  return new HubError(code, redact(message).slice(0, 600), errorDetail(error))
 }
 
 /**
@@ -71,14 +83,11 @@ function isRecord(value) {
  * A tool result must be lossless JSON, and an optional field that is absent must
  * be absent rather than explicitly undefined; the same shape travels over the RPC
  * route, so both adapters get clean data from one place.
- * @param {unknown} value
- * @returns {unknown}
  */
-export function jsonClean(value) {
+export function jsonClean(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(jsonClean)
   if (value !== null && typeof value === 'object') {
-    /** @type {Record<string, unknown>} */
-    const out = {}
+    const out: Record<string, unknown> = {}
     for (const [key, item] of Object.entries(value)) {
       if (item !== undefined) out[key] = jsonClean(item)
     }
@@ -88,7 +97,7 @@ export function jsonClean(value) {
 }
 
 /** Which operation kind one action represents, for the status label. */
-function operationKind(action) {
+function operationKind(action: string): string {
   if (action.startsWith('builds.')) return 'upload'
   if (action.startsWith('testflight.')) return 'distribute'
   if (action === 'release.submit') return 'submit'
@@ -98,7 +107,7 @@ function operationKind(action) {
 }
 
 /** Map a phase plus the running operation to the user-facing trigger label. */
-function labelFor(phase, operation) {
+function labelFor(phase: string, operation: Operation | null): string {
   // `phase` is the panel's vocabulary (it decides which onboarding step to show);
   // `label` is the user's, and it deliberately has five words: everything before
   // onboarding finishes reads `asc: start`, whatever step is missing or running.
@@ -109,30 +118,91 @@ function labelFor(phase, operation) {
   return 'start'
 }
 
-/**
- * @param {any} ctx Host context
- * @param {ReturnType<import('./config.js').normalizeConfig>} config
- */
-export function createHub(ctx, rawConfig) {
+/** The running operation the trigger observes. */
+export interface Operation {
+  id: string
+  kind: string
+  startedAt: string
+}
+
+/** The last failure the trigger observes. */
+export interface LastError {
+  code: string
+  message: string
+  at: string
+}
+
+/** The three gating classes of an action. */
+export type ActionKind = 'read' | 'write' | 'local-write'
+
+/** One row of the action table. */
+export interface ActionSpec {
+  kind: ActionKind
+  skipConfirm?: boolean
+  quiet?: boolean
+  clientOnly?: boolean
+  run(input: Record<string, unknown>, options: CallOptions): unknown
+}
+
+/** The skill pack plus whether the engine ships a newer one. */
+export interface SkillsStatus extends SkillPackState {
+  shippedRef: string | null
+  update: boolean
+}
+
+/** The workspace action's payload: where it works, and what it can build. */
+export type WorkspaceStatus = WorkspaceInfo & { build: BuildFacts }
+
+/** Derived state for the trigger and the panel (docs/CONTRACT.md §Hub state). */
+export interface HubStatus {
+  phase: string
+  label: string
+  engine: EngineState
+  auth: AuthState
+  app: null
+  operation: Operation | null
+  lastError: LastError | null
+  mode: AscMode
+  hub: { version: string }
+  skills: SkillsStatus
+  update: KnownUpdate
+  checkedAt: string
+}
+
+/** The one thing both adapters talk to. */
+export interface Hub {
+  /**
+   * Run one action. `T` is the wire shape the caller expects for that action
+   * (`docs/CONTRACT.md` §Actions); the dispatcher itself only knows it is JSON.
+   */
+  call<T = unknown>(action: string, rawInput?: unknown, options?: CallContext): Promise<T>
+  status(): Promise<HubStatus>
+  actionNames: string[]
+  ACTIONS: Record<string, ActionSpec>
+  dispose(): void
+  config: HubConfig
+}
+
+export function createHub(ctx: HostContext, rawConfig: HubConfig): Hub {
   // A private, editable copy: `normalizeConfig` freezes its result, and the footer's
   // mode switch has to change `mode` for this process without touching the row config.
-  const config = { ...rawConfig }
+  const config: HubConfig = { ...rawConfig }
   const asc = createAsc(ctx, config)
   const engine = createEngine(ctx, config, asc)
-  const auth = createAuth(ctx, config, asc, engine)
-  const ops = createOps(ctx, config, asc, engine)
-  const workspace = createWorkspace(ctx, config)
-  const build = createBuild(ctx, config, asc, engine)
+  const auth: Auth = createAuth(ctx, config, asc, engine)
+  const ops: Ops = createOps(ctx, config, asc, engine)
+  const workspace: Workspace = createWorkspace(ctx, config)
+  const build: Build = createBuild(ctx, config, asc, engine)
 
   /** Where this session works, plus what that directory can build. */
-  async function readWorkspace(input, options) {
+  async function readWorkspace(input: Record<string, unknown>, options: CallOptions): Promise<WorkspaceStatus> {
     const info = await workspace.info(input, options)
     return { ...info, build: await build.facts(info.cwd) }
   }
 
   /** The pin the installed engine ships, parsed once per engine build. */
-  let shippedSkills = { key: null, ref: null }
-  async function shippedSkillsRef() {
+  let shippedSkills: { key: string | null; ref: string | null } = { key: null, ref: null }
+  async function shippedSkillsRef(): Promise<string | null> {
     const state = await engine.detect()
     if (!state.installed || !state.path) return null
     const key = `${state.path}@${state.version ?? ''}`
@@ -152,7 +222,7 @@ export function createHub(ctx, rawConfig) {
    * The inherited pack, plus whether the engine now ships a newer one. The pin is
    * read from the engine itself, so "there is an update" is a fact, not a guess.
    */
-  async function readSkills() {
+  async function readSkills(): Promise<SkillsStatus> {
     const state = await detectSkills()
     if (!state.installed || typeof state.ref !== 'string') {
       return { ...state, shippedRef: null, update: false }
@@ -161,14 +231,11 @@ export function createHub(ctx, rawConfig) {
     return { ...state, shippedRef: shipped, update: shipped !== null && !sameRef(state.ref, shipped) }
   }
 
-  /** @type {{ id: string, kind: string, startedAt: string } | null} */
-  let operation = null
-  /** @type {{ code: string, message: string, at: string } | null} */
-  let lastError = null
+  let operation: Operation | null = null
+  let lastError: LastError | null = null
   let sequence = 0
 
-  /** @type {Record<string, { kind: 'read'|'write'|'local-write', skipConfirm?: boolean, clientOnly?: boolean, run: (input: any, options: any) => Promise<any> }>} */
-  const ACTIONS = {
+  const ACTIONS: Record<string, ActionSpec> = {
     status: { kind: 'read', run: () => status() },
     'engine.detect': { kind: 'read', run: () => engine.detect({ force: true }) },
     'engine.install': {
@@ -242,11 +309,12 @@ export function createHub(ctx, rawConfig) {
       // knows. The model can run the same asc commands itself when it means to.
       clientOnly: true,
       run: (input, options) => build.create({
-        ...(input !== null && typeof input === 'object' ? input : {}),
-        cwd: workspace.directory(input !== null && typeof input === 'object' ? input.sessionId : undefined),
+        ...input,
+        cwd: workspace.directory(typeof input.sessionId === 'string' ? input.sessionId : ''),
       }, options),
     },
-    'apps.list': { kind: 'read', run: (input, options) => ops.listApps(input, options) },    'builds.list': { kind: 'read', run: (input, options) => ops.listBuilds(input, options) },
+    'apps.list': { kind: 'read', run: (input, options) => ops.listApps(input, options) },
+    'builds.list': { kind: 'read', run: (input, options) => ops.listBuilds(input, options) },
     'builds.upload': { kind: 'write', run: (input, options) => ops.uploadBuild(input, options) },
     'testflight.groups': { kind: 'read', run: (input, options) => ops.listGroups(input, options) },
     'testflight.distribute': { kind: 'write', run: (input, options) => ops.distribute(input, options) },
@@ -269,8 +337,10 @@ export function createHub(ctx, rawConfig) {
    * read-only by construction: mutating subcommands are refused, and read-only
    * mode is also enforced by asc itself through the global `--read-only` flag.
    */
-  async function runEscapeHatch(input, options) {
-    const argv = Array.isArray(input.argv) ? input.argv.filter((item) => typeof item === 'string') : []
+  async function runEscapeHatch(input: Record<string, unknown>, options: CallOptions): Promise<unknown> {
+    const argv = Array.isArray(input.argv)
+      ? input.argv.filter((item): item is string => typeof item === 'string')
+      : []
     if (argv.length === 0) throw new HubError('INVALID_INPUT', '`argv` must be a non-empty array of strings.')
     const forbidden = new Set([
       'auth',
@@ -313,9 +383,9 @@ export function createHub(ctx, rawConfig) {
   }
 
   /** Derived state for the trigger and the panel. */
-  async function status() {
+  async function status(): Promise<HubStatus> {
     const engineState = await engine.detect()
-    let authState = {
+    let authState: AuthState = {
       configured: false,
       profiles: [],
       activeProfile: null,
@@ -330,7 +400,7 @@ export function createHub(ctx, rawConfig) {
       }
     }
     // Order matches docs/CONTRACT.md §Hub state: engine -> login -> busy -> error -> ready.
-    const phase =
+    const phase: string =
       !engineState.installed || operation?.kind === 'install'
         ? 'engine'
         : !authState.configured
@@ -361,11 +431,8 @@ export function createHub(ctx, rawConfig) {
 
   /**
    * Run one action.
-   * @param {string} action
-   * @param {Record<string, unknown>} rawInput
-   * @param {{ caller?: 'client' | 'tool', signal?: AbortSignal }} options
    */
-  async function call(action, rawInput, options = {}) {
+  async function call<T = unknown>(action: string, rawInput?: unknown, options: CallContext = {}): Promise<T> {
     const spec = ACTIONS[action]
     if (!spec) {
       throw new HubError('UNSUPPORTED_ACTION', `Unknown action: ${String(action)}`)
@@ -373,7 +440,7 @@ export function createHub(ctx, rawConfig) {
     if (rawInput !== undefined && rawInput !== null && !isRecord(rawInput)) {
       throw new HubError('INVALID_INPUT', '`input` must be a JSON object.')
     }
-    const input = isRecord(rawInput) ? rawInput : {}
+    const input: Record<string, unknown> = isRecord(rawInput) ? rawInput : {}
 
     if (spec.kind === 'write') {
       if (config.mode !== 'write') {
@@ -409,7 +476,9 @@ export function createHub(ctx, rawConfig) {
     try {
       const value = await spec.run(input, { signal: options.signal })
       lastError = null
-      return jsonClean(value)
+      // The value is lossless JSON by construction (`jsonClean`); `T` is the shape
+      // the caller declared, which only the wire contract can promise.
+      return jsonClean(value) as T
     } catch (error) {
       const hubError = asHubError(error)
       // A cancelled call is not a product failure; do not paint the button red.
@@ -422,7 +491,7 @@ export function createHub(ctx, rawConfig) {
     }
   }
 
-  function dispose() {
+  function dispose(): void {
     asc.dispose()
   }
 

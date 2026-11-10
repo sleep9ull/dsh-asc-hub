@@ -6,6 +6,12 @@ batch is worth someone else's restart, bump once, tag, publish, then check disco
 This page is the routine; [docs/RELEASING.md](RELEASING.md) is the mechanism (what a version is, what
 DSH reads, what each install kind can and cannot do). When they disagree, RELEASING is right.
 
+## The loop
+
+Edit `src/**`, run `npm run build`, then refresh the panel; the Host half additionally needs the
+row reinstalled so its module generation reloads. `npm run verify` is the gate: `tsc --noEmit` on
+all four projects, the 61 host tests against `dist/`, and the 247-check client smoke harness.
+
 ## 0. Two copies, one rule
 
 | copy | how it gets in | code takes effect after | upgradable in place |
@@ -44,7 +50,7 @@ Work in the linked copy on the `desktop` profile. A cycle is: change → check �
 5. **Commit.** Style already in the log: `fix: …`, `design: …`, `docs: …`, `release: dsh-asc-hub X.Y.Z`.
 6. **Do not bump the version here.** The version is a release artifact, not a commit artifact.
 
-Fast path for a pure client tweak: `node --check client.js` → smoke → refresh. Nothing else changed, so
+Fast path for a pure client tweak: `npm run check` → smoke → refresh. Nothing else changed, so
 skip the rest.
 
 ## 2. Deciding to release

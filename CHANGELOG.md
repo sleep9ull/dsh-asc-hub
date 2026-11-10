@@ -98,6 +98,16 @@ TestFlight — with everything else still reachable through the tool and the CLI
 
 ### Changed
 
+- **The codebase is TypeScript.** `index.js`, `host/*.js` and `client.js` became `src/index.ts`,
+  `src/host/*.ts` (with a shared `src/host/types.ts` for the Harness surface it does not publish) and
+  `src/client.ts`. Two `tsc` projects build `dist/`: the Host as ESM with declarations, the client as
+  a single script (`module: none`) so it stays the one file the module loader evaluates. `strict` is
+  on everywhere; the only casts left are at the dynamic-JSON and loader boundaries. `npm run verify`
+  (both projects, the 61 host tests against `dist/`, the 247-check client harness) is the gate, and
+  `package.json` `main`/`exports`/`files` now point at `dist/`, which `prepare` builds on install.
+
+### Changed
+
 - **One refresh, for the whole panel.** Every section used to carry its own `Refresh` button; the
   console now has the one in the header, and every query watches the store's reload counter, so one
   click re-reads status, workspace, builds, the release version and TestFlight groups together.

@@ -14,12 +14,24 @@
  */
 
 import { mkdirSync } from 'node:fs'
+import type { Dirent } from 'node:fs'
 import { readdirSync, readFileSync } from 'node:fs'
 import { basename, dirname, join } from 'node:path'
 import { tmpdir } from 'node:os'
 
 import { childEnv, resolveExecutable, runProcess } from './exec.js'
 import { redact } from './redact.js'
+import type {
+  AscMust,
+  AscOutcome,
+  CallOptions,
+  EngineDetector,
+  EnvConfig,
+  ExecResult,
+  HostContext,
+  HubConfig,
+} from './types.js'
+import { hostError, isRecord } from './types.js'
 
 /** Directories that never contain the project this checkout builds. */
 const SKIP = new Set([
@@ -38,6 +50,51 @@ const SKIP = new Set([
 /** How deep below the working directory a project may live (0 = the directory itself). */
 const MAX_DEPTH = 2
 
+/** The Xcode project a directory builds. */
+export interface Project {
+  kind: 'workspace' | 'project'
+  path: string
+  depth: number
+}
+
+/** What a directory can build, and why not when it cannot. */
+export interface BuildFacts {
+  xcode: boolean
+  kind: 'workspace' | 'project' | null
+  project: string | null
+  name: string | null
+  ios: boolean
+  schemes: string[]
+  ready: boolean
+  reason: string | null
+}
+
+/** The three asc argument lists one build needs. */
+export interface BuildArgv {
+  archive: string[]
+  export: string[]
+  upload: string[]
+}
+
+/** What one completed build reports back. */
+export interface BuildCreateResult {
+  scheme: string
+  project: string | null
+  archivePath: string
+  ipaPath: string
+  version: string | null
+  buildNumber: string | null
+  buildId: string | null
+  log: string
+}
+
+/** The build surface the dispatcher calls. */
+export interface Build {
+  facts(cwd: string | null): Promise<BuildFacts>
+  schemesFor(project: Project, cwd: string, signal?: AbortSignal): Promise<string[]>
+  create(input?: Record<string, unknown>, options?: CallOptions): Promise<BuildCreateResult>
+}
+
 /**
  * The Xcode project a directory builds.
  *
@@ -46,15 +103,13 @@ const MAX_DEPTH = 2
  * the dependency graph; a project is the fallback. `Pods/Pods.xcodeproj` and
  * friends are skipped by name, so the fallback cannot pick a generated project.
  *
- * @param {string} root absolute working directory
- * @returns {{ kind: 'workspace' | 'project', path: string, depth: number } | null}
+ * @param root absolute working directory
  */
-export function findProject(root) {
+export function findProject(root: string): Project | null {
   if (typeof root !== 'string' || root === '') return null
-  /** @type {{ kind: 'workspace' | 'project', path: string, depth: number }[]} */
-  const found = []
-  const walk = (directory, depth) => {
-    let entries
+  const found: Project[] = []
+  const walk = (directory: string, depth: number) => {
+    let entries: Dirent[]
     try {
       entries = readdirSync(directory, { withFileTypes: true })
     } catch {
@@ -78,32 +133,32 @@ export function findProject(root) {
   }
   walk(root, 0)
   if (found.length === 0) return null
-  const rank = entry => (entry.kind === 'workspace' ? 0 : 1)
+  const rank = (entry: Project) => (entry.kind === 'workspace' ? 0 : 1)
   found.sort((a, b) => a.depth - b.depth || rank(a) - rank(b) || a.path.localeCompare(b.path))
   return found[0]
 }
 
 /** A short label for the project: `App.xcworkspace`. */
-export function projectName(project) {
+export function projectName(project: Project | null): string | null {
   return project && typeof project.path === 'string' ? basename(project.path) : null
 }
 
 /**
  * `xcodebuild -list -json` → its schemes, tolerating every other shape.
  * The JSON is either `{ workspace: { schemes: [...] } }` or the `project` variant.
- * @param {string} stdout
- * @returns {string[]}
  */
-export function parseSchemes(stdout) {
+export function parseSchemes(stdout: string): string[] {
   try {
-    const parsed = JSON.parse(String(stdout ?? ''))
-    const container = parsed && typeof parsed === 'object'
-      ? (parsed.workspace && typeof parsed.workspace === 'object'
+    const parsed: unknown = JSON.parse(String(stdout ?? ''))
+    const container = isRecord(parsed)
+      ? isRecord(parsed.workspace)
         ? parsed.workspace
-        : parsed.project && typeof parsed.project === 'object' ? parsed.project : null)
+        : isRecord(parsed.project)
+          ? parsed.project
+          : null
       : null
     const schemes = container && Array.isArray(container.schemes) ? container.schemes : []
-    return schemes.filter(name => typeof name === 'string' && name.trim() !== '')
+    return schemes.filter((name): name is string => typeof name === 'string' && name.trim() !== '')
   } catch {
     return []
   }
@@ -112,19 +167,17 @@ export function parseSchemes(stdout) {
 /**
  * The three asc argument lists a build needs, built here so they are testable and
  * so the version travels as a build setting instead of a project rewrite.
- *
- * @param {object} spec
- * @param {'workspace' | 'project'} spec.kind
- * @param {string} spec.projectPath
- * @param {string} spec.scheme
- * @param {string | null} spec.version
- * @param {string | null} spec.buildNumber
- * @param {string} spec.appId
- * @param {string} spec.archivePath
- * @param {string} spec.ipaPath
- * @returns {{ archive: string[], export: string[], upload: string[] }}
  */
-export function buildArgv(spec) {
+export function buildArgv(spec: {
+  kind: 'workspace' | 'project'
+  projectPath: string
+  scheme: string
+  version: string | null
+  buildNumber: string | null
+  appId: string
+  archivePath: string
+  ipaPath: string
+}): BuildArgv {
   const projectFlag = spec.kind === 'workspace' ? '--workspace' : '--project'
   const archive = [
     'xcode',
@@ -164,13 +217,10 @@ export function buildArgv(spec) {
  * evidence; a project is its own `project.pbxproj`. `IPHONEOS_DEPLOYMENT_TARGET`
  * (or an `iphoneos` SDK root) is what every iOS target carries and a macOS-only
  * project does not.
- *
- * @param {{ kind: 'workspace' | 'project', path: string }} project
- * @returns {boolean}
  */
-export function projectIsIos(project) {
+export function projectIsIos(project: Project | null): boolean {
   if (!project || typeof project.path !== 'string') return false
-  const candidates = []
+  const candidates: string[] = []
   if (project.kind === 'project') candidates.push(project.path)
   else {
     try {
@@ -194,19 +244,18 @@ export function projectIsIos(project) {
 }
 
 /** The last few lines of a child's output, redacted, for a failure message. */
-function tail(result) {
+function tail(result: AscOutcome | undefined): string {
   const text = redact(`${result?.stderr ?? ''}\n${result?.stdout ?? ''}`).trim()
   const lines = text.split(/\r?\n/).filter(line => line.trim() !== '')
   return lines.slice(-8).join('\n')
 }
 
-/**
- * @param {any} ctx Host context
- * @param {ReturnType<import('./config.js').normalizeConfig>} config
- * @param {ReturnType<import('./asc.js').createAsc>} asc
- * @param {{ detect: Function }} engine
- */
-export function createBuild(ctx, config, asc, engine) {
+export function createBuild(
+  ctx: HostContext,
+  config: EnvConfig & Pick<HubConfig, 'maxOutputBytes'>,
+  asc: AscMust,
+  engine: EngineDetector,
+): Build {
   /**
    * Whether this machine can build an iOS app.
    *
@@ -214,7 +263,7 @@ export function createBuild(ctx, config, asc, engine) {
    * it exists but refuses every project ("requires Xcode"), and the developer
    * directory is what says which of the two is active.
    */
-  async function xcodeAvailable() {
+  async function xcodeAvailable(): Promise<boolean> {
     const select = await resolveExecutable(ctx, 'xcode-select')
     if (!select) return Boolean(await resolveExecutable(ctx, 'xcodebuild'))
     try {
@@ -240,10 +289,10 @@ export function createBuild(ctx, config, asc, engine) {
    * then does the project load (`unloadable`). Only the last two are fixable by
    * repairing the codebase, which is what the panel's auto-fix prompt is for.
    */
-  async function facts(cwd) {
+  async function facts(cwd: string | null): Promise<BuildFacts> {
     const project = typeof cwd === 'string' && cwd !== '' ? findProject(cwd) : null
     const xcode = await xcodeAvailable()
-    const base = {
+    const base: BuildFacts = {
       xcode,
       kind: project ? project.kind : null,
       project: project ? project.path : null,
@@ -256,15 +305,15 @@ export function createBuild(ctx, config, asc, engine) {
     if (project === null) return { ...base, reason: xcode ? 'no-project' : 'no-xcode' }
     const ios = projectIsIos(project)
     if (!xcode) return { ...base, ios, reason: 'no-xcode' }
-    const schemes = await schemesFor(project, cwd)
+    const schemes = await schemesFor(project, cwd ?? '')
     if (!ios) return { ...base, ios: false, schemes, reason: 'not-ios' }
     const ready = schemes.length > 0
     return { ...base, ios: true, schemes, ready, reason: ready ? null : 'unloadable' }
   }
 
-  async function schemesFor(project, cwd, signal) {
+  async function schemesFor(project: Project, cwd: string, signal?: AbortSignal): Promise<string[]> {
     const flag = project.kind === 'workspace' ? '-workspace' : '-project'
-    let result
+    let result: ExecResult | undefined
     try {
       result = await runProcess(ctx, {
         argv: ['xcodebuild', '-list', '-json', flag, project.path],
@@ -285,30 +334,24 @@ export function createBuild(ctx, config, asc, engine) {
    * Archive this checkout, export an .ipa, upload it, and wait for Apple to accept
    * it. Artifacts go to a temporary directory: a build must not dirty the repo it is
    * building, and an .xarchive is large.
-   *
-   * @param {any} input `{ appId, cwd, scheme?, version?, buildNumber? }`
-   * @param {{ signal?: AbortSignal }} [options]
    */
-  async function create(input = {}, options = {}) {
+  async function create(
+    input: Record<string, unknown> = {},
+    options: CallOptions = {},
+  ): Promise<BuildCreateResult> {
     const cwd = typeof input.cwd === 'string' && input.cwd !== '' ? input.cwd : ''
     if (cwd === '') {
-      // @ts-expect-error the dispatcher reads this code off the error
-      const error = new Error('This session has no working directory to build.')
-      error.code = 'BUILD_UNAVAILABLE'
-      throw error
+      throw hostError('BUILD_UNAVAILABLE', 'This session has no working directory to build.')
     }
     const appId = String(input.appId ?? '')
     const project = findProject(cwd)
     if (project === null) {
-      // @ts-expect-error the dispatcher reads this code off the error
-      const error = new Error(`No Xcode project or workspace found under ${cwd}.`)
-      error.code = 'BUILD_UNAVAILABLE'
-      throw error
+      throw hostError('BUILD_UNAVAILABLE', `No Xcode project or workspace found under ${cwd}.`)
     }
     const schemes = typeof input.scheme === 'string' && input.scheme !== ''
       ? [input.scheme]
       : await schemesFor(project, cwd, options.signal)
-    const scheme = schemes.length > 0 ? String(schemes[0]) : projectName(project).replace(/\.xcodeproj$/, '')
+    const scheme = schemes.length > 0 ? String(schemes[0]) : (projectName(project) ?? '').replace(/\.xcodeproj$/, '')
     const stamp = new Date().toISOString().replace(/[:.]/g, '-')
     const directory = join(tmpdir(), 'asc-hub-build', stamp)
     mkdirSync(directory, { recursive: true })
@@ -330,10 +373,7 @@ export function createBuild(ctx, config, asc, engine) {
     })
     const state = await engine.detect()
     if (!state.installed || !state.path) {
-      // @ts-expect-error the dispatcher reads this code off the error
-      const error = new Error('The asc engine is not installed.')
-      error.code = 'ASC_NOT_INSTALLED'
-      throw error
+      throw hostError('ASC_NOT_INSTALLED', 'The asc engine is not installed.')
     }
 
     // Archive and export are local and long; upload talks to App Store Connect.
@@ -357,7 +397,8 @@ export function createBuild(ctx, config, asc, engine) {
       timeoutMs: 60 * 60_000,
       signal: options.signal,
     })
-    const json = uploaded.json ?? {}
+    const json = uploaded.json
+    const buildIdValue = isRecord(json) ? json.buildId : undefined
     return {
       scheme,
       project: projectName(project),
@@ -365,7 +406,7 @@ export function createBuild(ctx, config, asc, engine) {
       ipaPath,
       version,
       buildNumber,
-      buildId: typeof json.buildId === 'string' ? json.buildId : null,
+      buildId: typeof buildIdValue === 'string' ? buildIdValue : null,
       log: [tail(archive), tail(exported), tail(uploaded)].filter(line => line !== '').join('\n'),
     }
   }

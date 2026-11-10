@@ -14,9 +14,53 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { field, pickArray } from './asc.js'
 import { tail } from './redact.js'
+import type { AscRunner, CallOptions, EngineDetector, HostContext } from './types.js'
+import { hostError } from './types.js'
 
 const KEY_TYPES = new Set(['team', 'individual', 'enterprise'])
 const PEM_PATTERN = /-----BEGIN (?:RSA )?PRIVATE KEY-----[\s\S]+-----END (?:RSA )?PRIVATE KEY-----/
+
+/** One stored credential, as the panel shows it. */
+export interface AuthProfile {
+  name: string
+  keyIdTail: string | undefined
+  /** asc's own passthrough value; the panel only displays it. */
+  keyType: unknown
+}
+
+/** The contract's `AuthState`. */
+export interface AuthState {
+  configured: boolean
+  profiles: AuthProfile[]
+  activeProfile: string | null
+  /** Whatever asc reports (`storageBackend`/`storageLocation`); display only. */
+  storage: unknown
+  environment: { provided: boolean; complete: boolean }
+}
+
+/** One `auth doctor` line. */
+export interface DoctorCheck {
+  section: unknown
+  status: unknown
+  message: unknown
+  recommendation: unknown
+}
+
+export interface DoctorReport {
+  ok: boolean
+  summary: unknown
+  checks: DoctorCheck[]
+}
+
+/** The credential surface the dispatcher calls. */
+export interface Auth {
+  status(): Promise<AuthState>
+  doctor(): Promise<DoctorReport>
+  login(input: Record<string, unknown>, options?: CallOptions): Promise<AuthState>
+  importKey(input: Record<string, unknown>, options?: CallOptions): Promise<AuthState>
+  logout(input: Record<string, unknown>, options?: CallOptions): Promise<AuthState>
+  switchProfile(input: Record<string, unknown>, options?: CallOptions): Promise<AuthState>
+}
 
 /**
  * Normalize `asc auth status --output json` into the contract's `AuthState`.
@@ -24,12 +68,14 @@ const PEM_PATTERN = /-----BEGIN (?:RSA )?PRIVATE KEY-----[\s\S]+-----END (?:RSA 
  * environmentCredentialsProvided, environmentCredentialsComplete }`; a
  * credential's own field names are read defensively.
  */
-export function normalizeAuthState(json, config) {
+export function normalizeAuthState(json: unknown, config: { profile: string | null }): AuthState {
   const credentials = pickArray(json, ['credentials', 'profiles'])
   const profiles = credentials.map((entry) => {
     const keyId = field(entry, 'keyId') ?? field(entry, 'key_id')
     return {
-      name: field(entry, 'name') ?? field(entry, 'profile') ?? 'default',
+      // asc names every credential; the cast keeps the value verbatim (the
+      // upstream field is a string) instead of inventing a different fallback.
+      name: (field(entry, 'name') ?? field(entry, 'profile') ?? 'default') as string,
       keyIdTail: tail(typeof keyId === 'string' ? keyId : undefined),
       keyType: field(entry, 'keyType') ?? field(entry, 'key_type') ?? undefined,
       isDefault: Boolean(field(entry, 'default') ?? field(entry, 'isDefault')),
@@ -56,12 +102,15 @@ export function normalizeAuthState(json, config) {
 }
 
 /** Normalize `asc auth doctor --output json`. */
-export function normalizeDoctor(json) {
-  const sections = Array.isArray(field(json, 'sections')) ? field(json, 'sections') : []
-  const checks = []
+export function normalizeDoctor(json: unknown): DoctorReport {
+  const sectionsValue = field(json, 'sections')
+  const sections = Array.isArray(sectionsValue) ? sectionsValue : []
+  const checks: DoctorCheck[] = []
   for (const section of sections) {
     const title = field(section, 'title') ?? 'checks'
-    for (const check of Array.isArray(field(section, 'checks')) ? field(section, 'checks') : []) {
+    const sectionChecksValue = field(section, 'checks')
+    const sectionChecks = Array.isArray(sectionChecksValue) ? sectionChecksValue : []
+    for (const check of sectionChecks) {
       // asc's check objects carry only `status`, `message` and an optional
       // `recommendation`; the section title is their only grouping label.
       checks.push({
@@ -80,24 +129,21 @@ export function normalizeDoctor(json) {
   }
 }
 
-/**
- * @param {any} ctx
- * @param {{ profile: string|null }} config
- * @param {ReturnType<import('./asc.js').createAsc>} asc
- * @param {{ detect: Function }} engine
- */
-export function createAuth(ctx, config, asc, engine) {
-  async function binary() {
+export function createAuth(
+  ctx: HostContext,
+  config: { profile: string | null },
+  asc: AscRunner,
+  engine: EngineDetector,
+): Auth {
+  async function binary(): Promise<string> {
     const state = await engine.detect()
     if (!state.installed || !state.path) {
-      const error = new Error('The asc engine is not installed.')
-      error.code = 'ASC_NOT_INSTALLED'
-      throw error
+      throw hostError('ASC_NOT_INSTALLED', 'The asc engine is not installed.')
     }
     return state.path
   }
 
-  async function status() {
+  async function status(): Promise<AuthState> {
     const path = await binary()
     const result = await asc.run(['auth', 'status'], { path, timeoutMs: 20_000, local: true })
     if (result.exitCode !== 0) {
@@ -112,32 +158,37 @@ export function createAuth(ctx, config, asc, engine) {
     return normalizeAuthState(result.json, config)
   }
 
-  async function doctor() {
+  async function doctor(): Promise<DoctorReport> {
     const path = await binary()
     const result = await asc.run(['auth', 'doctor'], { path, timeoutMs: 60_000, local: true })
     return normalizeDoctor(result.json ?? {})
   }
 
-  async function profileNames() {
+  async function profileNames(): Promise<string[]> {
     const state = await status()
     return state.profiles.map((profile) => profile.name)
   }
 
-  async function login(input, options = {}) {
+  async function login(input: Record<string, unknown>, options: CallOptions = {}): Promise<AuthState> {
+    const keyId = String(input.keyId ?? '')
+    const issuerId = String(input.issuerId ?? '')
+    const privateKeyPath = typeof input.privateKeyPath === 'string' ? input.privateKeyPath : ''
+    const keyType = input.keyType
+    const name = typeof input.name === 'string' ? input.name : ''
+    const storage = input.storage
     // Validate the human's input before probing the engine: a typo must answer
     // immediately and must not depend on what is installed on this machine.
-    if (!/^[A-Za-z0-9]{4,}$/.test(String(input.keyId ?? ''))) {
+    if (!/^[A-Za-z0-9]{4,}$/.test(keyId)) {
       fail('INVALID_INPUT', 'The Key ID looks wrong; it is the 10-character id shown next to the key name.')
     }
-    if (input.keyType !== undefined && !KEY_TYPES.has(input.keyType)) {
+    if (keyType !== undefined && (typeof keyType !== 'string' || !KEY_TYPES.has(keyType))) {
       fail('INVALID_INPUT', 'The key type must be team, individual or enterprise.')
     }
-    if (!input.privateKeyPath) {
+    if (!privateKeyPath) {
       fail('INVALID_INPUT', 'A private key path is required.')
     }
     const path = await binary()
     const existing = await profileNames()
-    let name = input.name
     if (!name) {
       if (existing.length > 0) {
         fail('INVALID_INPUT', `A profile name is required; asc already has ${existing.join(', ')}.`)
@@ -145,10 +196,10 @@ export function createAuth(ctx, config, asc, engine) {
     }
     const argv = ['auth', 'login']
     if (name) argv.push('--name', name)
-    argv.push('--key-id', input.keyId, '--issuer-id', String(input.issuerId ?? ''))
-    argv.push('--private-key', input.privateKeyPath)
-    if (input.keyType) argv.push('--key-type', input.keyType)
-    if (input.storage === 'config') argv.push('--bypass-keychain')
+    argv.push('--key-id', keyId, '--issuer-id', issuerId)
+    argv.push('--private-key', privateKeyPath)
+    if (keyType) argv.push('--key-type', keyType)
+    if (storage === 'config') argv.push('--bypass-keychain')
     if (input.network === true) argv.push('--network')
     const result = await asc.run(argv, { path, timeoutMs: 120_000, output: false, local: true, signal: options.signal })
     if (result.exitCode !== 0) {
@@ -161,7 +212,7 @@ export function createAuth(ctx, config, asc, engine) {
     return status()
   }
 
-  async function importKey(input, options = {}) {
+  async function importKey(input: Record<string, unknown>, options: CallOptions = {}): Promise<AuthState> {
     const pem = String(input.privateKeyPem ?? '')
     if (!PEM_PATTERN.test(pem)) {
       fail('INVALID_INPUT', 'That file is not a PEM private key.')
@@ -176,10 +227,11 @@ export function createAuth(ctx, config, asc, engine) {
     }
   }
 
-  async function logout(input, options = {}) {
+  async function logout(input: Record<string, unknown>, options: CallOptions = {}): Promise<AuthState> {
     const path = await binary()
+    const name = typeof input.name === 'string' ? input.name : ''
     const argv = ['auth', 'logout']
-    if (input.name) argv.push('--name', input.name)
+    if (name) argv.push('--name', name)
     if (input.all === true) argv.push('--all')
     argv.push('--confirm')
     const result = await asc.run(argv, { path, timeoutMs: 60_000, output: false, local: true, signal: options.signal })
@@ -187,9 +239,10 @@ export function createAuth(ctx, config, asc, engine) {
     return status()
   }
 
-  async function switchProfile(input, options = {}) {
+  async function switchProfile(input: Record<string, unknown>, options: CallOptions = {}): Promise<AuthState> {
     const path = await binary()
-    const result = await asc.run(['auth', 'switch', '--name', input.name], {
+    const name = typeof input.name === 'string' ? input.name : ''
+    const result = await asc.run(['auth', 'switch', '--name', name], {
       path,
       timeoutMs: 30_000,
       output: false,
@@ -203,9 +256,6 @@ export function createAuth(ctx, config, asc, engine) {
   return { status, doctor, login, importKey, logout, switchProfile }
 }
 
-function fail(code, message, detail) {
-  const error = new Error(message)
-  error.code = code
-  error.detail = detail
-  throw error
+function fail(code: string, message: string, detail?: string): never {
+  throw hostError(code, message, detail)
 }

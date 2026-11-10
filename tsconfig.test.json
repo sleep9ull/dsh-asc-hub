@@ -1,0 +1,15 @@
+{
+  "compilerOptions": {
+    "target": "ES2023",
+    "lib": ["ES2023"],
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "rootDir": "test",
+    "outDir": "dist-test",
+    "strict": true,
+    "skipLibCheck": true,
+    "types": ["node"],
+    "sourceMap": false
+  },
+  "include": ["test/**/*.ts"]
+}

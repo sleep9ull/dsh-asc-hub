@@ -35,8 +35,8 @@ dispatcher.
 | half | lives in | owns | never does |
 |---|---|---|---|
 | Host | `index.js`, `host/**` | input validation, gating, running `asc`, error classification, redaction, Hub state | render UI, talk to Apple directly |
-| Client | `client.js` | theme, layout, confirmation dialogs, app/vendor selection, the panel-only credential handoff | spawn processes, hold credentials, import Harness Client packages |
-| Tool | `host/tool.js` | the `asc_hub` schema and approval request | re-implement any operation |
+| Client | `src/client.ts` | theme, layout, confirmation dialogs, app/vendor selection, the panel-only credential handoff | spawn processes, hold credentials, import Harness Client packages |
+| Tool | `src/host/tool.ts` | the `asc_hub` schema and approval request | re-implement any operation |
 
 The rule that keeps the halves honest: **every operation is implemented once, in the Host
 dispatcher, and each caller is an adapter** — the panel for everything, the tool for everything
@@ -120,7 +120,7 @@ const ACTIONS = {
 Both adapters read the same table, which is why the tool's action list, the route's action
 validation and the panel's buttons cannot drift apart. The `clientOnly` entries are the exception
 that proves the rule: the tool sees them and refuses them, rather than implementing a second path. An unknown action is `UNSUPPORTED_ACTION` from
-either caller. `host/tool.js` adds exactly one thing: the Host approval request for tool-called
+either caller. `src/host/tool.ts` adds exactly one thing: the Host approval request for tool-called
 `write` and `local-write` actions, whose denial is `APPROVAL_DENIED`; the `clientOnly` flag on the
 credential actions keeps them out of the model's reach (`CLIENT_ONLY`). Everything before and after
 that call is shared.
@@ -208,21 +208,22 @@ about selection.
 | file | role |
 |---|---|
 | `index.js` | plugin entry: normalize the row's config, create the hub, register the Fetch route and the `asc_hub` tool inside `ctx.effect`, dispose children on unload |
-| `host/config.js` | config defaults and tolerant normalization (a wrong type falls back to the safe default) |
-| `host/exec.js` | the only place a child process starts: Harness subprocess service when mounted, `node:child_process` otherwise; argv arrays, deadline, env scrub, bounded output, cancellation |
-| `host/asc.js` | the `asc` seam: global flags, argv assembly, JSON decoding, exit-code classification — the compatibility boundary from [docs/UPSTREAM-ASC.md](UPSTREAM-ASC.md) |
-| `host/engine.js` | detect the binary in the documented order, parse `asc version`, install via Homebrew or the official script |
-| `host/auth.js` | `auth status/login/importKey/logout/switch/doctor`; the one place a PEM passes through, and only to a `0600` temporary file |
-| `host/ops.js` | the App Store operations: apps, builds, TestFlight, review/release, sales, analytics |
-| `host/dispatch.js` | the `ACTIONS` table, gating, operation observation, `HubState` + trigger-label derivation, error envelope |
-| `host/rpc.js` | Fetch adapter: one route per action, wire-envelope validation, 400 responses; 401/403 come from the `/api` fence before the handler |
-| `host/tool.js` | `asc_hub` adapter: flat tool parameters, action forwarding, Host approval for writes |
-| `host/skill.js` | The plugin's own model skill: reads `skills/asc-hub/SKILL.md` and registers it through `ctx.skills.register`, because a package directory is not a skill root. Optional: no registry, no skill. |
-| `host/skills.js` | The inherited `asc` skill pack: read-only detection from `~/.agents` and the `asc install-skills` call. |
-| `host/workspace.js` | the session's effective directory and its git shape (repository, branch, linked worktree); the directory is the Harness's answer, the git facts are best effort |
-| `host/build.js` | the build the panel can run on that directory: nearest Xcode workspace/project, its schemes, archive → export → upload with version and build number as build settings |
-| `host/redact.js` | redaction rules, output clamping, identifier tails |
-| `client.js` | hand-written browser module: status button in `conversation.session.header.utilities`, console tab in `sidebar.right.pane.tab` (+ its title), inline `en`/`zh` locale dictionaries registered under namespace `asc-hub` |
+| `src/host/config.ts` | config defaults and tolerant normalization (a wrong type falls back to the safe default) |
+| `src/host/exec.ts` | the only place a child process starts: Harness subprocess service when mounted, `node:child_process` otherwise; argv arrays, deadline, env scrub, bounded output, cancellation |
+| `src/host/asc.ts` | the `asc` seam: global flags, argv assembly, JSON decoding, exit-code classification — the compatibility boundary from [docs/UPSTREAM-ASC.md](UPSTREAM-ASC.md) |
+| `src/host/engine.ts` | detect the binary in the documented order, parse `asc version`, install via Homebrew or the official script |
+| `src/host/auth.ts` | `auth status/login/importKey/logout/switch/doctor`; the one place a PEM passes through, and only to a `0600` temporary file |
+| `src/host/ops.ts` | the App Store operations: apps, builds, TestFlight, review/release, sales, analytics |
+| `src/host/dispatch.ts` | the `ACTIONS` table, gating, operation observation, `HubState` + trigger-label derivation, error envelope |
+| `src/host/rpc.ts` | Fetch adapter: one route per action, wire-envelope validation, 400 responses; 401/403 come from the `/api` fence before the handler |
+| `src/host/tool.ts` | `asc_hub` adapter: flat tool parameters, action forwarding, Host approval for writes |
+| `src/host/skill.ts` | The plugin's own model skill: reads `skills/asc-hub/SKILL.md` and registers it through `ctx.skills.register`, because a package directory is not a skill root. Optional: no registry, no skill. |
+| `src/host/skills.ts` | The inherited `asc` skill pack: read-only detection from `~/.agents` and the `asc install-skills` call. |
+| `src/host/types.ts` | the shared surface the Harness does not publish: the `ctx` shape, the service readers, config slices, the asc result types and the error helpers |
+| `src/host/workspace.ts` | the session's effective directory and its git shape (repository, branch, linked worktree); the directory is the Harness's answer, the git facts are best effort |
+| `src/host/build.ts` | the build the panel can run on that directory: nearest Xcode workspace/project, its schemes, archive → export → upload with version and build number as build settings |
+| `src/host/redact.ts` | redaction rules, output clamping, identifier tails |
+| `src/client.ts` | hand-written browser module: status button in `conversation.session.header.utilities`, console tab in `sidebar.right.pane.tab` (+ its title), inline `en`/`zh` locale dictionaries registered under namespace `asc-hub` |
 | `locale/*.json` | plugin display metadata (`meta.title` / `meta.description`) read by the Plugin Manager |
 | `cordis.patch.yml` | the bundle patch that inserts the `asc-hub` Host row |
 | `docs/CONTRACT.md` | the wire contract — the single source of truth for actions, state, errors and config |
@@ -243,3 +244,13 @@ If a file above is renamed or a module is split, update this table and
 - **Sales beyond the summary.** Month roll-ups, the raw Sales and Trends TSV export (`analytics
   sales`, whose `--output` is a file path), report-instance drill-down and finance reports stay out
   of v1.
+
+## Build
+
+The code is TypeScript. `npm run build` runs two `tsc` projects: `tsconfig.json` compiles
+`src/index.ts` + `src/host/*.ts` to ESM in `dist/` with declarations, and `tsconfig.client.json`
+compiles `src/client.ts` — a script, `module: none` — to `dist/client.js`. `package.json` `main` and
+`exports` point at `dist/`, so the Host runtime and the Web Client both load built files, and
+`prepare` builds on install. `tsconfig.test.json` compiles the tests into `dist-test/` (they import
+`dist/`), and `tsconfig.smoke.json` type-checks the client harness, which runs straight from source
+through Node's type stripping.

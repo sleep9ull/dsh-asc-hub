@@ -9,17 +9,17 @@
 import { strict as assert } from 'node:assert'
 import { test } from 'node:test'
 import { existsSync } from 'node:fs'
-import { normalizeConfig } from '../host/config.js'
-import { createHub } from '../host/dispatch.js'
+import { normalizeConfig } from '../dist/host/config.js'
+import { createHub } from '../dist/host/dispatch.js'
 
 const ASC = ['/opt/homebrew/bin/asc', '/usr/local/bin/asc'].find(existsSync)
 const skip = ASC === undefined ? 'asc is not installed on this machine' : false
 
-function stubCtx() {
+function stubCtx(): any {
   return { get: () => undefined, effect: () => () => {}, on: () => () => {}, logger: { info() {}, warn() {} } }
 }
 
-function hub(config = {}) {
+function hub(config: Record<string, unknown> = {}): any {
   return createHub(stubCtx(), normalizeConfig(config))
 }
 
@@ -41,7 +41,7 @@ test('reports the onboarding phase without throwing', { skip }, async () => {
 test('an unauthenticated read is classified, not crashed', { skip }, async () => {
   const state = await hub().call('status', {})
   if (state.auth.configured) return // a signed-in machine skips this branch
-  await assert.rejects(() => hub().call('apps.list', {}), (error) => {
+  await assert.rejects(() => hub().call('apps.list', {}), (error: any) => {
     assert.equal(error.code, 'ASC_AUTH_MISSING')
     // The raw detail is redacted and bounded, never a raw credential echo.
     assert.ok(error.detail === undefined || !/ASCAuthKey/.test(error.detail))
@@ -53,7 +53,7 @@ test('read-only mode refuses to publish', { skip }, async () => {
   const instance = hub({ mode: 'read-only' })
   await assert.rejects(
     () => instance.call('release.submit', { appId: '1', confirm: true }),
-    (error) => error.code === 'READ_ONLY_MODE',
+    (error: any) => error.code === 'READ_ONLY_MODE',
   )
 })
 

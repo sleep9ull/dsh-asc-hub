@@ -19,26 +19,29 @@ implements every operation once; the Web Client and the `asc_hub` tool are adapt
 
 | path | what it is |
 |---|---|
-| `index.js` | Host entry: `apply(ctx, config)`, normalize config, create the hub, register the Fetch route + tool inside `ctx.effect`, dispose children on unload. `inject = ['connection']`. |
-| `host/config.js` | Defaults and tolerant normalization; the row's `config` is normalized here, not by a Cordis `Config` export. |
-| `host/exec.js` | The only child-process spawn. Harness `ctx.subprocess` when mounted, `node:child_process` otherwise. argv arrays, deadline, scrubbed env, bounded output, cancellation. |
-| `host/asc.js` | The `asc` seam: global flags, argv assembly, JSON decoding, exit-code classification. The compatibility boundary. |
-| `host/engine.js` | Detect (configured path → PATH → known locations), parse `asc version`, install via brew or the official script. |
-| `host/auth.js` | `auth status/login/importKey/logout/switch/doctor`; the only place a PEM passes through, and only to a `0600` temp file deleted in `finally`. |
-| `host/ops.js` | App Store operations: apps, builds, TestFlight, release, sales, analytics. |
-| `host/dispatch.js` | The `ACTIONS` table (class + `clientOnly`), gating, operation/lastError observation, Hub state derivation, error envelope. |
-| `host/rpc.js` | Client adapter: one POST route per action under `/api/asc-hub/`, wire validation, responses. |
-| `host/tool.js` | Model adapter: flat tool parameters, action forwarding, Host approval for tool-called `local-write`/`write` actions; credential actions stay model-unreachable. |
-| `host/skill.js` | The plugin's own model skill: `skills/asc-hub/SKILL.md` parsed and registered via `ctx.skills.register` (a package directory is not a skill root, so discovery alone never finds it). Optional. |
-| `host/skills.js` | The inherited `asc` skill pack: detection from `~/.agents` and the `asc install-skills` call. Neither vendored nor rewritten. |
-| `host/workspace.js` | Where the session works: the Harness's effective directory (`ctx.sessions` → `ctx.workingDirectory`) plus best-effort git facts (repo, branch, linked worktree). |
-| `host/build.js` | Building that directory: find the Xcode workspace/project, list schemes, and run `asc xcode archive` → `export` → `builds upload --wait`. Version and build number travel as build settings, never as a project edit. |
-| `host/redact.js` | Redaction rules, output clamping, identifier tails. |
-| `client.js` | Hand-written plain-JS browser module: header trigger, right-sidebar console, onboarding. No build. |
-| `locale/*.json` | Plugin display metadata (`meta.title`, `meta.description`) for the Plugin Manager; the panel's `en`/`zh` dictionaries live inline in `client.js`. |
+| `src/index.ts` | Host entry: `apply(ctx, config)`, normalize config, create the hub, register the Fetch route + tool inside `ctx.effect`, dispose children on unload. `inject = ['connection']`. |
+| `src/host/config.ts` | Defaults and tolerant normalization; the row's `config` is normalized here, not by a Cordis `Config` export. |
+| `src/host/exec.ts` | The only child-process spawn. Harness `ctx.subprocess` when mounted, `node:child_process` otherwise. argv arrays, deadline, scrubbed env, bounded output, cancellation. |
+| `src/host/asc.ts` | The `asc` seam: global flags, argv assembly, JSON decoding, exit-code classification. The compatibility boundary. |
+| `src/host/engine.ts` | Detect (configured path → PATH → known locations), parse `asc version`, install via brew or the official script. |
+| `src/host/auth.ts` | `auth status/login/importKey/logout/switch/doctor`; the only place a PEM passes through, and only to a `0600` temp file deleted in `finally`. |
+| `src/host/ops.ts` | App Store operations: apps, builds, TestFlight, release, versions, sales, analytics. |
+| `src/host/dispatch.ts` | The `ACTIONS` table (class + `clientOnly`), gating, operation/lastError observation, Hub state derivation, error envelope. |
+| `src/host/rpc.ts` | Client adapter: one POST route per action under `/api/asc-hub/`, wire validation, responses. |
+| `src/host/tool.ts` | Model adapter: flat tool parameters, action forwarding, Host approval for tool-called `local-write`/`write` actions; credential actions stay model-unreachable. |
+| `src/host/skill.ts` | The plugin's own model skill: `skills/asc-hub/SKILL.md` parsed and registered via `ctx.skills.register` (a package directory is not a skill root, so discovery alone never finds it). Optional. |
+| `src/host/skills.ts` | The inherited `asc` skill pack: detection from `~/.agents` and the `asc install-skills` call. Neither vendored nor rewritten. |
+| `src/host/workspace.ts` | Where the session works: the Harness's effective directory (`ctx.sessions` → `ctx.workingDirectory`) plus git facts (repo, branch, linked worktree, drift, dirty count) and build readiness. |
+| `src/host/build.ts` | Building that directory: find the Xcode workspace/project, list schemes, and run `asc xcode archive` → `export` → `builds upload --wait`. Version and build number travel as build settings, never as a project edit. |
+| `src/host/redact.ts` | Redaction rules, output clamping, identifier tails. |
+| `src/client.ts` | The Web Client half: one TypeScript script, compiled by `tsconfig.client.json` into `dist/client.js`. No JSX, no `@deepseek-ai` imports; React arrives through the loader's `require`. |
+| `dist/` | Build output (`npm run build`): `dist/index.js`, `dist/host/*.js` + `.d.ts`, `dist/client.js`. Git-ignored; shipped in the npm tarball. |
+| `tsconfig.json` / `tsconfig.client.json` / `tsconfig.test.json` | Host (ESM, strict, declarations), client (script, DOM libs, `module: none`), tests (compiled into `dist-test/`). |
+| `locale/*.json` | Plugin display metadata (`meta.title`, `meta.description`) for the Plugin Manager; the panel's `en`/`zh` dictionaries live inline in `src/client.ts`. |
 | `cordis.patch.yml` | Bundle patch inserting the `asc-hub` row (`name: dsh-asc-hub`). |
 | `docs/` | CONTRACT (authoritative), ARCHITECTURE, OPERATIONS, ONBOARDING, UPSTREAM-ASC, RELEASING, WORKFLOW, research. |
-| `skills/asc-hub/SKILL.md` | The compact model-facing skill for the `asc_hub` tool, registered at runtime by `host/skill.js` (it is not discovered from disk). |
+| `skills/asc-hub/SKILL.md` | The compact model-facing skill for the `asc_hub` tool, registered at runtime by `src/host/skill.ts` (it is not discovered from disk). |
+| `test/*.test.ts` | Host tests, compiled into `dist-test/` and run against `dist/`. `client/__smoke__.mts` is the client harness: it loads `dist/client.js` the way the loader does and audits the module. |
 | `THIRD_PARTY_NOTICES.md`, `LICENSE` | MIT for the plugin; verbatim MIT notice for `asc` (not bundled). |
 
 If you split or rename a Host module, update this table and the module map in
@@ -48,17 +51,21 @@ If you split or rename a Host module, update this table and the module map in
 
 These do not regress. Each has a cheap test; run the test before claiming the change is done.
 
-1. **One operation, implemented once.** Behavior lives in the Host dispatcher (`host/dispatch.js`
-   `ACTIONS` + the operation module). Adapters (`host/rpc.js`, `host/tool.js`, `client.js`) only
+1. **One operation, implemented once.** Behavior lives in the Host dispatcher (`src/host/dispatch.ts`
+   `ACTIONS` + the operation module). Adapters (`src/host/rpc.ts`, `src/host/tool.ts`, `src/client.ts`) only
    translate. *Test:* the operation still works end-to-end with either adapter.
-2. **The Client half has no build step and no Harness imports.** Hand-written JavaScript, no JSX,
+2. **The Client half is one compiled script with no Harness imports.** `src/client.ts` is a script
+   (`module: none`) compiled to `dist/client.js`; no JSX, no `import`/`export` statements,
    `require('react')` from the browser module table only, zero `@deepseek-ai/*` imports. *Test:*
-   `node --check client.js` and grep for `@deepseek-ai`.
-3. **The Host half stays dependency-free.** Only `node:*` builtins and relative modules. A linked
-   directory install resolves the checkout's own module graph; a dependency would resolve in the
-   plugin's tree, not yours, and break the link.
+   `npx tsc -p tsconfig.client.json --noEmit`, plus the smoke harness's static audit of
+   `dist/client.js`.
+3. **The Host half stays dependency-free at runtime.** `src/` uses only `node:*` builtins and
+   relative modules, and `dist/` carries no dependencies: TypeScript and `@types/node` are
+   devDependencies that never reach the tarball's runtime. A linked directory install resolves the
+   checkout's own module graph; a runtime dependency would resolve in the plugin's tree, not yours,
+   and break the link.
 4. **Every visible string is localized.** Text goes through `ctx.locale` under namespace `asc-hub`,
-   registered with both an `en` and a `zh` dictionary (currently inline in `client.js`); no literal
+   registered with both an `en` and a `zh` dictionary (currently inline in `src/client.ts`); no literal
    user-facing copy in components. Plugin display metadata lives in `locale/en.json` /
    `locale/zh.json` and is edited there.
 5. **Host-theme styling only, with one documented exception.** CSS uses `--dsw-alias-*` tokens from
@@ -68,7 +75,7 @@ These do not regress. Each has a cheap test; run the test before claiming the ch
    rule repeats the literal. *Test:* the client smoke fails unless there is exactly one literal, it is
    `#0071e3`, and it is aliased. Artwork keeps its own colors in `icon.svg`.
 6. **Key material never persists, logs or echoes.** The plugin hands key ids/paths to `asc`; `asc`
-   and the macOS Keychain own storage. Every outbound string passes `host/redact.js`; ids are
+   and the macOS Keychain own storage. Every outbound string passes `src/host/redact.ts`; ids are
    shortened to their last four characters (`keyIdTail`).
 7. **Read-only by default, with one deliberate exception.** Three classes decide the gate: `read`
    (none), `local-write` (this machine only — engine install, credential actions — **allowed in
@@ -96,20 +103,21 @@ Do it in this order; each step has a completion check.
    `local-write` or `write`; add `clientOnly` if it touches credentials), `input`, `data`. Add any
    new error code to §Errors. *Done when:* the panel and tool meanings are identical and the input
    shape has no undefined field.
-2. **Dispatcher.** Implement the command in `host/ops.js` (or `host/engine.js` / `host/auth.js`),
-   validate input, and add `{ kind, run }` to `ACTIONS` in `host/dispatch.js`; add `clientOnly` only
+2. **Dispatcher.** Implement the command in `src/host/ops.ts` (or `src/host/engine.ts` / `src/host/auth.ts`),
+   validate input, and add `{ kind, run }` to `ACTIONS` in `src/host/dispatch.ts`; add `clientOnly` only
    for a credential action the model must never run, and use the action's natural `operationKind`.
    *Done when:* no adapter file changed to make it work.
 3. **Tool.** For anything the model may call, add the input fields to `INPUT_FIELDS` and the action
-   to the `asc_hub` description in `host/tool.js`. Panel-only actions stay out of the tool's reach.
+   to the `asc_hub` description in `src/host/tool.ts`. Panel-only actions stay out of the tool's reach.
    *Done when:* `Tool.listTools` shows the action and its fields, and a tool-called `write` or
    `local-write` reaches the approval prompt.
-4. **Client.** Add the card/button in `client.js`, gate writes on the same `confirm` step, and route
-   all text through the locale dictionaries. *Done when:* `node --check client.js` passes and the
+4. **Client.** Add the card/button in `src/client.ts`, gate writes on the same `confirm` step, and route
+   all text through the locale dictionaries. *Done when:* `npx tsc -p tsconfig.client.json --noEmit` passes and the
    live slot renders the new card with both locales.
 
-Run the checks: `node --check` on every touched `.js` file, then `npm test`
-(`node --test test/`). Then verify in the running Harness (next section).
+Run the checks: `npm run check` (both `tsc --noEmit` projects), then `npm test` (builds `dist/`,
+compiles the tests into `dist-test/` and runs them against the built output), then `npm run smoke`
+(builds and runs `client/__smoke__.mts`). Then verify in the running Harness (next section).
 
 ## Install and verify
 
@@ -137,9 +145,11 @@ Use the `plugin_manager` tool; do not reproduce installation with shell commands
 
 ## Pitfalls
 
-- **Linked installs serve `client.js` from the checkout.** After editing it, refresh the page. HMR
-  only reloads client bundles while the deployment's dev watcher (`pnpm run dev:web`) is running;
-  otherwise a refresh is required. An unchanged slot id does not prove the new code loaded.
+- **Linked installs serve `dist/client.js` and `dist/index.js` from the checkout.** Editing
+  `src/**` changes nothing until `npm run build` regenerates `dist/`; then refresh the page (the Host
+  half additionally needs the row reinstalled so the module generation reloads). HMR only reloads
+  client bundles while the deployment's dev watcher (`pnpm run dev:web`) is running. An unchanged
+  slot id does not prove the new code loaded.
 - **`asc` flags are position-sensitive.** Root flags (`--profile`, `--report`, `--read-only`, …) go
   before the subcommand; `--profile` is the only one that may trail. `--output` is per-command, not
   global; `asc builds --output json` is a usage error.
@@ -157,7 +167,7 @@ Use the `plugin_manager` tool; do not reproduce installation with shell commands
   numeric part only, accept an optional leading `v`.
 - **`--limit 0` means "the command's default"**, not "no rows".
 - **Do not export a Cordis `Config`** for this row and do not persist config yourself: the row's
-  `config` is normalized by `host/config.js`; the patch layer survives plugin upgrades.
+  `config` is normalized by `src/host/config.ts`; the patch layer survives plugin upgrades.
 - **Sign-in is panel-only.** Never route `auth.login`, `auth.importKey`, `auth.logout` or
   `auth.switch` through the model; `clientOnly` turns an attempt into `CLIENT_ONLY`, and the panel is
   the only credential handoff by design.

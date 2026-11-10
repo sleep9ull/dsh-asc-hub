@@ -12,23 +12,42 @@
  *   response  { type: 'server-response', rpcId, result: { ok, value } | { ok, error } }
  */
 
-import { HubError } from './dispatch.js'
+import type { Hub } from './dispatch.js'
 import { redact } from './redact.js'
+import type { HostContext } from './types.js'
+import { errorCode, errorDetail, errorMessage, fetchRegistry, isRecord } from './types.js'
 
 const PREFIX = '/api/asc-hub/'
 const METHOD_PREFIX = 'asc-hub/'
 
-function jsonResponse(body, status = 200) {
+/** The error envelope the contract defines. */
+export interface RpcFailure {
+  ok: false
+  error: {
+    code: string
+    message: string
+    details: { text?: string }
+  }
+}
+
+/** The success envelope the contract defines. */
+export interface RpcSuccess {
+  ok: true
+  value: unknown
+}
+
+function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
     headers: { 'content-type': 'application/json', 'cache-control': 'no-store' },
   })
 }
 
-function failure(error) {
-  const code = typeof error?.code === 'string' ? error.code : 'ASC_FAILED'
-  const message = typeof error?.message === 'string' ? error.message : 'The asc operation failed.'
-  const detail = typeof error?.detail === 'string' ? redact(error.detail).slice(0, 8_000) : undefined
+function failure(error: unknown): RpcFailure {
+  const code = errorCode(error) ?? 'ASC_FAILED'
+  const message = errorMessage(error) ?? 'The asc operation failed.'
+  const rawDetail = errorDetail(error)
+  const detail = rawDetail ? redact(rawDetail).slice(0, 8_000) : undefined
   return {
     ok: false,
     error: { code, message: redact(message).slice(0, 600), details: detail ? { text: detail } : {} },
@@ -36,14 +55,11 @@ function failure(error) {
 }
 
 /**
- * @param {any} ctx Host context
- * @param {ReturnType<import('./dispatch.js').createHub>} hub
- * @returns {number} how many routes were registered
+ * @returns how many routes were registered
  */
-export function registerRpc(ctx, hub) {
-  const connection = ctx.get('connection')
-  const registry = connection?.fetch
-  if (!registry || typeof registry.register !== 'function') {
+export function registerRpc(ctx: HostContext, hub: Hub): number {
+  const registry = fetchRegistry(ctx)
+  if (!registry) {
     ctx.logger?.warn?.('asc-hub: no connection fetch registry; the panel cannot reach the Host half')
     return 0
   }
@@ -56,31 +72,30 @@ export function registerRpc(ctx, hub) {
       methods: ['POST'],
       requestBody: 'buffered',
       fetch: async (request) => {
-        let body
+        let body: unknown
         try {
           body = await request.json()
         } catch {
           return jsonResponse({ error: 'body is not JSON' }, 400)
         }
         if (
-          body === null ||
-          typeof body !== 'object' ||
+          !isRecord(body) ||
           body.type !== 'client-request' ||
           typeof body.rpcId !== 'string' ||
           body.method !== method
         ) {
           return jsonResponse({ error: 'invalid asc-hub request envelope' }, 400)
         }
-        const payload = body.payload !== null && typeof body.payload === 'object' ? body.payload : {}
+        const payload = isRecord(body.payload) ? body.payload : {}
         if (payload.action !== undefined && payload.action !== action) {
           return jsonResponse({ error: 'action does not match the route' }, 400)
         }
-        let result
+        let result: RpcSuccess | RpcFailure
         try {
           const value = await hub.call(action, payload.input, { caller: 'client', signal: request.signal })
           result = { ok: true, value: value === undefined ? null : value }
         } catch (error) {
-          result = failure(error instanceof HubError ? error : error)
+          result = failure(error)
         }
         return jsonResponse({ type: 'server-response', rpcId: body.rpcId, result })
       },

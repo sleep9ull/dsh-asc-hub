@@ -1,10 +1,12 @@
 import { strict as assert } from 'node:assert'
 import { test } from 'node:test'
-import { normalizeConfig } from '../host/config.js'
-import { createHub, HubError } from '../host/dispatch.js'
+import { normalizeConfig } from '../dist/host/config.js'
+import { createHub, HubError } from '../dist/host/dispatch.js'
 
 /** A context stub: no subprocess service, no tools, no logger. */
-function stubCtx() {
+// The tests drive the hub as a consumer would; the hub's wire types are the contract's
+// job, so the stub and the call result stay loose on purpose.
+function stubCtx(): any {
   return {
     get: () => undefined,
     effect: () => () => {},
@@ -13,13 +15,13 @@ function stubCtx() {
   }
 }
 
-function hub(config) {
+function hub(config: Record<string, unknown>): any {
   return createHub(stubCtx(), normalizeConfig(config))
 }
 
 test('unknown actions are refused before any work', async () => {
   const h = hub({})
-  await assert.rejects(() => h.call('nope.nope', {}), (error) => {
+  await assert.rejects(() => h.call('nope.nope', {}), (error: any) => {
     assert.ok(error instanceof HubError)
     assert.equal(error.code, 'UNSUPPORTED_ACTION')
     return true
@@ -31,7 +33,7 @@ test('read-only mode refuses every publishing action', async () => {
   for (const action of ['builds.upload', 'testflight.distribute', 'testflight.submitBeta', 'release.submit']) {
     await assert.rejects(
       () => h.call(action, { appId: '1', buildId: '1', ipaPath: '/tmp/x.ipa', groupNames: ['A'], confirm: true }),
-      (error) => error.code === 'READ_ONLY_MODE',
+      (error: any) => error.code === 'READ_ONLY_MODE',
       `${action} should be refused in read-only mode`,
     )
   }
@@ -45,13 +47,13 @@ test('onboarding actions are not blocked by the publish gate', async () => {
     assert.equal(h.ACTIONS[action].kind, 'local-write', `${action} must be local-write`)
   }
   // And the two credential actions validate their input before any child runs.
-  await assert.rejects(() => h.call('auth.login', {}), (error) => error.code === 'INVALID_INPUT')
+  await assert.rejects(() => h.call('auth.login', {}), (error: any) => error.code === 'INVALID_INPUT')
 })
 
 test('credential actions validate before touching the engine', async () => {
   const h = hub({ mode: 'read-only' })
-  await assert.rejects(() => h.call('auth.login', { keyId: 'no' }), (error) => error.code === 'INVALID_INPUT')
-  await assert.rejects(() => h.call('auth.importKey', { privateKeyPem: 'not a key' }), (error) => error.code === 'INVALID_INPUT')
+  await assert.rejects(() => h.call('auth.login', { keyId: 'no' }), (error: any) => error.code === 'INVALID_INPUT')
+  await assert.rejects(() => h.call('auth.importKey', { privateKeyPem: 'not a key' }), (error: any) => error.code === 'INVALID_INPUT')
 })
 
 test('the model cannot sign the user in or out', async () => {
@@ -59,7 +61,7 @@ test('the model cannot sign the user in or out', async () => {
   for (const action of ['auth.login', 'auth.importKey', 'auth.logout', 'auth.switch']) {
     await assert.rejects(
       () => h.call(action, { name: 'x', keyId: 'ABCD1234', issuerId: 'i' }, { caller: 'tool' }),
-      (error) => error.code === 'CLIENT_ONLY',
+      (error: any) => error.code === 'CLIENT_ONLY',
       `${action} must be panel-only`,
     )
   }
@@ -67,7 +69,7 @@ test('the model cannot sign the user in or out', async () => {
 
 test('write mode still requires an explicit confirmation', async () => {
   const h = hub({ mode: 'write' })
-  await assert.rejects(() => h.call('release.submit', { appId: '1' }), (error) => {
+  await assert.rejects(() => h.call('release.submit', { appId: '1' }), (error: any) => {
     assert.equal(error.code, 'CONFIRM_REQUIRED')
     return true
   })
@@ -85,14 +87,14 @@ test('engine.install is its own explicit action, so it needs no confirm field', 
 
 test('non-object input is rejected', async () => {
   const h = hub({})
-  await assert.rejects(() => h.call('apps.list', ['nope']), (error) => error.code === 'INVALID_INPUT')
+  await assert.rejects(() => h.call('apps.list', ['nope']), (error: any) => error.code === 'INVALID_INPUT')
 })
 
 test('the escape hatch refuses authentication and shell-ish entry points', async () => {
   const h = hub({})
-  await assert.rejects(() => h.call('run', { argv: [] }), (error) => error.code === 'INVALID_INPUT')
-  await assert.rejects(() => h.call('run', { argv: ['auth', 'login'] }), (error) => error.code === 'INVALID_INPUT')
-  await assert.rejects(() => h.call('run', { argv: ['web', 'finance'] }), (error) => error.code === 'INVALID_INPUT')
+  await assert.rejects(() => h.call('run', { argv: [] }), (error: any) => error.code === 'INVALID_INPUT')
+  await assert.rejects(() => h.call('run', { argv: ['auth', 'login'] }), (error: any) => error.code === 'INVALID_INPUT')
+  await assert.rejects(() => h.call('run', { argv: ['web', 'finance'] }), (error: any) => error.code === 'INVALID_INPUT')
 })
 
 test('status is derived, never stored, and safe on a bare host', async () => {
@@ -108,8 +110,8 @@ test('status is derived, never stored, and safe on a bare host', async () => {
 })
 
 test('the escape hatch is read-only by construction, even in write mode', async () => {
-  const { childEnv, globalFlags } = await import('../host/exec.js')
-  const writeMode = { profile: null, mode: 'write', telemetryDisabled: true, bypassKeychain: false }
+  const { childEnv, globalFlags } = (await import('../dist/host/exec.js')) as any
+  const writeMode = { profile: null, mode: 'write' as const, telemetryDisabled: true, bypassKeychain: false }
   assert.deepEqual(globalFlags(writeMode, { forceReadOnly: true }), ['--read-only'])
   assert.equal(childEnv(writeMode, undefined, { forceReadOnly: true }).ASC_READ_ONLY, '1')
 })
@@ -125,7 +127,7 @@ test('the escape hatch refuses the command groups that own a typed action', asyn
   ]) {
     await assert.rejects(
       () => h.call('run', { argv }),
-      (error) => error.code === 'INVALID_INPUT',
+      (error: any) => error.code === 'INVALID_INPUT',
       `${argv.join(' ')} must be refused`,
     )
   }

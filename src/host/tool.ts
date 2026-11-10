@@ -8,10 +8,13 @@
  */
 
 import { HubError } from './dispatch.js'
+import type { Hub } from './dispatch.js'
 import { redact } from './redact.js'
+import type { HostContext, ToolDefinition, ToolRegistry } from './types.js'
+import { errorCode, errorDetail, errorMessage } from './types.js'
 
 /** Fields the tool accepts and forwards into the action's `input`. */
-const INPUT_FIELDS = [
+const INPUT_FIELDS: string[] = [
   'appId',
   'vendorNumber',
   'period',
@@ -50,7 +53,7 @@ Use this tool after the app is built, to finish shipping it:
 
 Read actions run immediately. Publishing actions (builds.upload, testflight.distribute, testflight.submitBeta, release.submit, release.publish) need the plugin in \`mode: write\`, an explicit \`confirm: true\`, and a human approval; without approval they fail closed. Report the returned \`code\` to the user and follow its remedy instead of retrying blindly.`
 
-const PARAMETERS = {
+const PARAMETERS: Record<string, unknown> = {
   action: {
     type: 'string',
     required: true,
@@ -98,13 +101,8 @@ const PARAMETERS = {
   timeoutMs: { type: 'integer', description: 'For run: timeout in milliseconds.' },
 }
 
-/**
- * @param {any} ctx Host context
- * @param {any} tools the `ctx.tools` service
- * @param {ReturnType<import('./dispatch.js').createHub>} hub
- */
-export function registerTool(ctx, tools, hub) {
-  const definition = {
+export function registerTool(ctx: HostContext, tools: ToolRegistry, hub: Hub): void {
+  const definition: ToolDefinition = {
     name: 'asc_hub',
     description: DESCRIPTION,
     parameters: PARAMETERS,
@@ -115,17 +113,17 @@ export function registerTool(ctx, tools, hub) {
     },
     async execute(args, exec) {
       const action = typeof args?.action === 'string' ? args.action : ''
-      /** @type {Record<string, unknown>} */
-      const input = {}
+      const input: Record<string, unknown> = {}
       for (const field of INPUT_FIELDS) {
         if (args[field] !== undefined) input[field] = args[field]
       }
       try {
         return await hub.call(action, input, { caller: 'tool', signal: exec?.signal })
       } catch (error) {
-        const code = typeof error?.code === 'string' ? error.code : 'ASC_FAILED'
-        const message = typeof error?.message === 'string' ? error.message : 'The asc operation failed.'
-        const detail = typeof error?.detail === 'string' ? redact(error.detail).slice(0, 4_000) : ''
+        const code = errorCode(error) ?? 'ASC_FAILED'
+        const message = errorMessage(error) ?? 'The asc operation failed.'
+        const rawDetail = errorDetail(error)
+        const detail = rawDetail ? redact(rawDetail).slice(0, 4_000) : ''
         const failure = new Error(`${code}: ${redact(message).slice(0, 600)}${detail ? `\n\n${detail}` : ''}`)
         failure.name = 'AscHubError'
         throw failure
@@ -139,10 +137,8 @@ export function registerTool(ctx, tools, hub) {
 /**
  * Ask for approval before any write action the model initiates. Read actions and
  * the UI caller never pass through here.
- * @param {any} ctx
- * @param {ReturnType<import('./dispatch.js').createHub>} hub
  */
-export function registerApproval(ctx, hub) {
+export function registerApproval(ctx: HostContext, hub: Hub): void {
   if (!hub.config.requireApproval) return
   ctx.on('tools/pre-execute', async (exec, next) => {
     if (exec?.name !== 'asc_hub') return next()

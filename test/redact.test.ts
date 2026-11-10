@@ -1,6 +1,6 @@
 import { strict as assert } from 'node:assert'
 import { test } from 'node:test'
-import { clampText, redact, tail } from '../host/redact.js'
+import { clampText, redact, tail } from '../dist/host/redact.js'
 
 test('redact removes private key blocks', () => {
   const text = 'before\n-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBg\n-----END PRIVATE KEY-----\nafter'

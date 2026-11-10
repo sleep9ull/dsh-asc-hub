@@ -8,9 +8,11 @@
 
 import { childEnv, globalFlags, runProcess } from './exec.js'
 import { clampText, redact } from './redact.js'
+import type { AscClient, AscRunOptions, AscResult, HostContext, HubConfig } from './types.js'
+import { hostError, isRecord } from './types.js'
 
 /** Parse one JSON document without throwing. */
-export function parseJson(text) {
+export function parseJson(text: string): unknown {
   const trimmed = text.trim()
   if (trimmed === '') return undefined
   try {
@@ -23,12 +25,10 @@ export function parseJson(text) {
 /**
  * asc's JSON envelopes are not uniform (a bare array, `{data:[…]}`, or a named
  * collection). Pick the first plausible array without guessing field values.
- * @param {unknown} value
- * @param {readonly string[]} keys
  */
-export function pickArray(value, keys = []) {
+export function pickArray(value: unknown, keys: readonly string[] = []): unknown[] {
   if (Array.isArray(value)) return value
-  if (value !== null && typeof value === 'object') {
+  if (isRecord(value)) {
     for (const key of keys) {
       const candidate = value[key]
       if (Array.isArray(candidate)) return candidate
@@ -41,20 +41,30 @@ export function pickArray(value, keys = []) {
 
 /**
  * Read one field from a possibly nested object, e.g. `attributes.name`.
- * @param {any} value
- * @param {string} path
  */
-export function field(value, path) {
-  let current = value
+export function field(value: unknown, path: string): unknown {
+  let current: unknown = value
   for (const part of path.split('.')) {
     if (current === null || typeof current !== 'object') return undefined
-    current = current[part]
+    // The guard above is the runtime test; a JSON node is indexed by name and
+    // the value stays unknown until the caller narrows it.
+    current = (current as Record<string, unknown>)[part]
   }
   return current
 }
 
+/** A classified asc failure: the contract's code plus a safe message. */
+export interface AscFailure {
+  code: string
+  message: string
+}
+
 /** Map an asc exit code to the contract's error code. */
-export function classifyExit(exitCode, stdout, stderr) {
+export function classifyExit(
+  exitCode: number | null,
+  stdout: string,
+  stderr: string,
+): AscFailure | undefined {
   const text = `${stderr}\n${stdout}`
   if (exitCode === 0) return undefined
   if (exitCode === 3) {
@@ -75,23 +85,23 @@ export function classifyExit(exitCode, stdout, stderr) {
   return { code: 'ASC_FAILED', message: firstErrorLine(text) ?? `asc exited with code ${exitCode}.` }
 }
 
-function firstErrorLine(text) {
+function firstErrorLine(text: string): string | undefined {
   if (typeof text !== 'string' || text.trim() === '') return undefined
-  const line = text.split('\n').map((item) => item.trim()).find((item) => item !== '')
+  const line = text
+    .split('\n')
+    .map((item) => item.trim())
+    .find((item) => item !== '')
   return line ? redact(line).slice(0, 400) : undefined
 }
 
 /**
  * Create the asc invocation client.
- * @param {any} ctx Host context
- * @param {import('./config.js').DEFAULTS & object} config
  */
-export function createAsc(ctx, config) {
-  /** @type {Set<AbortController>} */
-  const active = new Set()
+export function createAsc(ctx: HostContext, config: HubConfig): AscClient {
+  const active = new Set<AbortController>()
 
   /** Resolve the executable once per invocation so a reinstall is picked up. */
-  async function run(args, options = {}) {
+  async function run(args: readonly string[], options: AscRunOptions = {}): Promise<AscResult> {
     const {
       path,
       cwd = process.cwd(),
@@ -121,17 +131,14 @@ export function createAsc(ctx, config) {
   }
 
   /** Run and throw a classified error for any non-zero exit. */
-  async function must(args, options = {}) {
+  async function must(args: readonly string[], options: AscRunOptions = {}): Promise<AscResult> {
     const result = await run(args, options)
     if (result.missing) {
-      const error = new Error('The asc engine is not installed.')
-      error.code = 'ASC_NOT_INSTALLED'
-      throw error
+      throw hostError('ASC_NOT_INSTALLED', 'The asc engine is not installed.')
     }
     const failure = classifyExit(result.exitCode, result.stdout, result.stderr)
     if (failure) {
-      const error = new Error(failure.message)
-      error.code = failure.code
+      const error = hostError(failure.code, failure.message)
       error.detail = redact(clampText(`${result.stderr}\n${result.stdout}`, 8_000)).trim() || undefined
       error.result = result
       throw error
@@ -144,7 +151,7 @@ export function createAsc(ctx, config) {
    * as `asc version` reject it). The retry is driven by asc's own usage error, so
    * a future command that gains or loses the flag keeps working.
    */
-  async function runAuto(args, options = {}) {
+  async function runAuto(args: readonly string[], options: AscRunOptions = {}): Promise<AscResult> {
     const first = await run(args, { ...options, output: true })
     if (first.missing) return first
     if (first.exitCode === 2 && /unknown flag .{0,3}output/i.test(first.stderr)) {
@@ -155,12 +162,12 @@ export function createAsc(ctx, config) {
     return first
   }
 
-  function track(controller) {
+  function track(controller: AbortController): () => boolean {
     active.add(controller)
     return () => active.delete(controller)
   }
 
-  function dispose() {
+  function dispose(): void {
     for (const controller of active) {
       try {
         controller.abort()

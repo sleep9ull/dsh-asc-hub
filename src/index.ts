@@ -19,6 +19,8 @@ import { createHub } from './host/dispatch.js'
 import { registerRpc } from './host/rpc.js'
 import { registerSkill } from './host/skill.js'
 import { registerApproval, registerTool } from './host/tool.js'
+import type { HostContext } from './host/types.js'
+import { toolRegistry } from './host/types.js'
 
 /** Cordis plugin name; matches the Loader row id in cordis.patch.yml. */
 export const name = 'asc-hub'
@@ -31,10 +33,10 @@ export const name = 'asc-hub'
 export const inject = ['connection']
 
 /**
- * @param {any} ctx Host context
- * @param {unknown} config the Loader row's raw `config`
+ * @param ctx Host context
+ * @param config the Loader row's raw `config`
  */
-export function apply(ctx, config) {
+export function apply(ctx: HostContext, config: unknown): void {
   const resolved = normalizeConfig(config)
   const hub = createHub(ctx, resolved)
 
@@ -46,8 +48,8 @@ export function apply(ctx, config) {
   // directory is not a skill root, so discovery alone would never find it.
   const skill = registerSkill(ctx) ? 'on' : 'off'
 
-  const tools = ctx.get('tools')
-  if (tools !== null && tools !== undefined && typeof tools.register === 'function') {
+  const tools = toolRegistry(ctx.get('tools'))
+  if (tools) {
     registerTool(ctx, tools, hub)
     registerApproval(ctx, hub)
   }

@@ -15,10 +15,8 @@ const PEM_BODY_LINE = /^[A-Za-z0-9+/=]{40,}$/gm
 
 /**
  * Remove credential-shaped text from one string.
- * @param {string} text
- * @returns {string}
  */
-export function redact(text) {
+export function redact(text: string): string {
   if (typeof text !== 'string' || text === '') return ''
   return text
     .replace(PRIVATE_KEY_BLOCK, '<redacted-private-key>')
@@ -31,19 +29,16 @@ export function redact(text) {
 /**
  * Shorten an identifier for display. Key ids and issuer ids are not secrets
  * without the private key, but the panel never needs more than the tail.
- * @param {string | undefined | null} value
  */
-export function tail(value, keep = 4) {
+export function tail(value: string | undefined | null, keep = 4): string | undefined {
   if (typeof value !== 'string' || value === '') return undefined
   return value.length <= keep ? value : `…${value.slice(-keep)}`
 }
 
 /**
  * Bound a log string so a runaway child cannot blow up the panel payload.
- * @param {string} text
- * @param {number} maxBytes
  */
-export function clampText(text, maxBytes) {
+export function clampText(text: string, maxBytes: number): string {
   if (typeof text !== 'string') return ''
   if (Buffer.byteLength(text, 'utf8') <= maxBytes) return text
   const slice = Buffer.from(text, 'utf8').subarray(0, maxBytes).toString('utf8')

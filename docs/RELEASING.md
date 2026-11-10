@@ -1,0 +1,197 @@
+# Releasing `dsh-asc-hub`
+
+How a version of this plugin becomes something a person can install, and how that person upgrades
+later. The short version: **the version is `package.json`'s `version`, and the upgrade channel is
+npm.** DeepSeek Harness never reads GitHub Releases.
+
+## How DSH resolves a plugin version
+
+Three facts, three places. None of them is a DSH-specific version registry.
+
+| fact | lives in | read by |
+|---|---|---|
+| what version this code is | `package.json` `version` (semver) | install/inspect, `listBundles`, the panel footer (`status.hub.version`) |
+| what the profile wants installed | the profile's `package.json` `dependencies` — an exact `x.y.z` for a registry install, `link:<dir>` for a checkout, or a git/tarball spec | the profile's package manager |
+| what is actually loaded | `<profile>/node_modules/<name>/package.json` | module resolution |
+
+Compatibility is a separate declaration, not a version number: `engines.dsh` (or, if absent,
+`peerDependencies` on `@deepseek-ai/dsh*`). DSH checks it against the single runtime version before
+a plugin mounts, with `semver.satisfies(runtime, range, { includePrerelease: true })`, so a range
+has to accept the runtime you actually run — the Desktop app currently reports `0.2.2-rc.1`, which
+`">=0.2.0"` accepts only *because* of `includePrerelease`. This repository declares:
+
+```json
+"engines.dsh": ">=0.2.2-rc.1 <0.3.0"
+```
+
+The upper bound is deliberate: this plugin uses `ctx.connection.fetch`, the sidebar slot and
+`ctx.skills.register`, and a DSH minor may change them. When a new DSH line lands, verify here and
+widen the range in the same release. A user stuck behind a refusal can grant a per-package exemption
+(`compatibility.json` in the profile, `plugin_manager` → `set_version_exemption`, or
+`dsh plugin --profile <profile> allow-version <pkg>@<version> --dsh-version <runtime> --accept-risk`),
+but that is their risk decision, not a substitute for testing.
+
+The gate is not advisory. Verified against this runtime with a throwaway bundle declaring an
+impossible requirement:
+
+```text
+dsh: installation rejected: Plugin dsh-compat-probe@0.0.1 is incompatible with dsh 0.2.2-rc.1:
+requirements {"engines.dsh":">=99.0.0"}. Running it may cause crashes or data loss.
+dsh: nothing was installed.
+```
+
+`plugin_manager` reports it as `error.code: incompatible-version` with the refused version and the
+unmet requirements, before any download runs. The same range also decides whether an installed
+bundle may mount, so a bad declaration breaks upgrades, not just first installs. The mirror image
+also holds: this repository's real range passed the check on the same host, which is why a linked
+install still applies.
+
+An empty or invalid range is treated as *incompatible*, so never write `"dsh": ""`.
+
+## The upgrade channel is npm, not GitHub Releases
+
+`plugin-manager` decides whether a bundle is `updatable` from the profile's dependency spec, then
+asks the registry plan — `pnpm view <name> versions time dist-tags` — for versions above the
+installed one. A bundle installed from a **registry spec under its own name** with a semver version
+and no plugin management gets a **Versions** section on its page in **Plugins → Installed**, with
+**Update** per version; anything installed from a link, a path, git or a tarball, and anything DSH
+ships itself, gets no Versions section at all. The market (`Plugins → Discover`) is read-only about
+upgrades: it shows `Update available` against the index's default version and leaves the action to
+the Installed tab.
+
+So:
+
+- **npm publish is the release.** It is what makes `Update` appear.
+- **GitHub Releases are for humans**: release notes, a downloadable tarball pointer, a stable URL to
+  cite. Useful, cheap, not load-bearing. A git spec (`github:sleep9ull/dsh-asc-hub#v0.2.0`) installs,
+  but that profile can never be upgraded in place — only uninstall + reinstall.
+- A GitHub Release, a tag and the npm version are kept in lockstep so a bug report names one thing.
+
+## Version policy
+
+While the plugin is pre-1.0:
+
+| bump | when |
+|---|---|
+| `0.1.x` | behaviour fixes, docs, tests; the wire contract's action table is unchanged |
+| `0.x.0` | new actions, new panel surface, new state fields; anything that edits `docs/CONTRACT.md`'s tables |
+| `1.0.0` | when the action table, `HubState` and the gating classes are frozen |
+
+Rules that never bend:
+
+- A published version is immutable. Never reuse or overwrite one; npm allows an unpublish for 72
+  hours and it is still the wrong tool — ship `0.2.1`.
+- `git tag v<version>` must equal `package.json` `version` and the CHANGELOG heading
+  (`## [0.2.0] — YYYY-MM-DD`).
+- `HUB_VERSION` in `host/dispatch.js` is read once from `package.json` at Host load, so the footer
+  reports the version of the **loaded** copy: after a bump, restart the Host to see it. A linked
+  checkout shows the new number only after a restart, not after a page refresh.
+
+## Release checklist
+
+1. `npm test` (Host) and `node client/__smoke__.mjs` (Client) green; `npm run check` clean.
+2. Edit `package.json` `version`.
+3. Move `[Unreleased]` in `CHANGELOG.md` to `## [x.y.z] — <date>`, leave a fresh `[Unreleased]`, and
+   add the link reference at the bottom.
+4. If the wire changed, `docs/CONTRACT.md` changed in the same commit (invariant in `AGENTS.md`).
+5. Commit, then `git tag -a vX.Y.Z -m "dsh-asc-hub X.Y.Z"`.
+6. `npm publish` — `prepublishOnly` re-runs `check` + tests, and refuses to publish a broken tree.
+   `npm pack --dry-run` first if the `files` list changed (~117 kB packed, 31 files today).
+7. `git push origin main --follow-tags`.
+8. Create the GitHub Release from the tag, pasting the CHANGELOG section. Attach nothing: npm is the
+   artifact.
+9. Re-verify the published copy the way a user gets it — remove the `link:` dependency and install
+   the registry version (see below), then confirm the footer reports `x.y.z` after a restart.
+10. **T+1 day:** ask `plugin_market` for `dsh-asc-hub`. Found → the catalog picked it up; absent →
+    step 11.
+11. **T+3 days, still absent:** open a listing request with the catalog, and/or publish our own
+    `dsh-asc-hub` index (see [Distribution vs discovery](#distribution-vs-discovery-npm-ships-it-an-index-finds-it)).
+
+Steps 10–11 are discovery only. Skipping them costs nothing at install time — **Add plugin** and
+`dsh plugin add` read npm directly — but it costs every search in Discover.
+
+First publish needs `npm login` once; the package name is unscoped and currently unclaimed
+(`dsh-asc-hub` on npmjs.com). Check with `npm view dsh-asc-hub version` — `E404` means the name is
+still free.
+
+## How a user upgrades, per install kind
+
+| installed as | profile dependency | upgrade path |
+|---|---|---|
+| npm registry (what **Add plugin** produces — and Discover too, once the package is listed — saved **exact**) | `"dsh-asc-hub": "0.2.0"` | **Plugins → Installed →** the bundle's page → **Versions** → **Update**. The Host removes the old version and installs `dsh-asc-hub@0.2.1` with the same selection, and reinstalls the old one if the new one fails. The Installed list also flags **Update available**. |
+| CLI-managed profile (`web`, `tui`, your own — **not** the Desktop app's profile, which the app shell owns) | same | `dsh plugin --profile <profile> add dsh-asc-hub@0.2.1` (forwards to pnpm). Recomposition follows; restart if the Host reports `restart-required`. |
+| `plugin_manager` tool | same | `install_bundle` with spec `dsh-asc-hub@0.2.1`; under HMR a same-name install is refused with `already-installed`, so `remove_bundle` first (or let the user press Update). |
+| linked checkout (this repository, `link:/Users/…/dsh-asc-hub`) | `"dsh-asc-hub": "link:…"` | `git pull` in the checkout, then restart the Desktop app / Host process (client-only edits need just a page refresh). **No Versions section** — a link install is not updatable by design. |
+| git or tarball | `github:…` / a URL | Re-`add` the new spec. No Versions section. |
+
+A version can also be pinned on the way in, which is the answer to "install exactly this one": the
+market entry's **Versions** list offers **Install** per version; **Add plugin** accepts
+`dsh-asc-hub@0.2.0`; `plugin_manager` → `install_bundle` takes the same spec; the CLI takes the same
+string after `add`. Registry installs are saved **exact**, not as a range, so the profile never
+drifts on its own.
+
+## Distribution vs discovery: npm ships it, an index finds it
+
+Two different surfaces read two different things, and conflating them is the easy mistake:
+
+| surface | reads | finds a brand-new release? |
+|---|---|---|
+| `Plugins → Add plugin` | the **npm registry** (`pnpm view` against the chosen registry) | immediately, by exact name |
+| `dsh plugin add` / `plugin_manager.install_bundle` | the **npm registry** | immediately |
+| `Plugins → Discover` and the `plugin_market` tool | a **format-1 index document**, default `https://cdn.jsdelivr.net/npm/dsh-plugin-catalog/index.json` | only after the package is listed in that index |
+
+**Discover does not search npm.** It fetches one curated JSON per configured index source and
+searches that document's fields (name, author, keywords, every language of title/description,
+categories, labels). A package published five minutes ago is invisible there until the catalog that
+lists it is regenerated. Measured against the running app:
+
+```text
+plugin_market list_indexes   → one source: https://cdn.jsdelivr.net/npm/dsh-plugin-catalog/index.json
+plugin_market query "memory" → 289 entries        (the index and the search work)
+plugin_market query "dsh-asc-hub" → 0 entries     (not listed yet)
+```
+
+So `npm publish` makes the plugin **installable**; being listed makes it **findable**. Both are worth
+doing, and they are separate steps.
+
+### Getting listed
+
+The shipped index is a third party's document, curated by
+[awesome-dsh-plugin.com](https://awesome-dsh-plugin.com) (their
+[repo](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin) documents the listing bar: it
+installs with `dsh plugin add`, declares `dsh.bundle`, and does what its one-line description says).
+This repository cannot publish into it. Sequence:
+
+1. `npm publish` with the `dsh-plugin` / `deepseek-harness` keywords already declared in
+   `package.json`.
+2. **T+1 day:** re-run `plugin_market` with query `dsh-asc-hub`. The catalog looks generated from npm,
+   so it may appear on its own — verify rather than assume.
+3. **T+3 days, still absent:** open a listing request/PR against their repository with the package
+   name.
+
+### Our own index, named `dsh-asc-hub`
+
+The fallback is an index we control, and it is named after the package: the index document's `title`
+is `dsh-asc-hub` and its single entry's `title` is `dsh-asc-hub` too, so the Discover card, the
+source picker and the search hit all read exactly the name people install by. The entry's `name`
+stays the npm package name (`dsh-asc-hub`), and every version is `source: { "type": "npm" }` with its
+`publishTimestamp` and `engines`.
+
+```text
+https://sleep9ull.github.io/dsh-asc-hub/index.json     (GitHub Pages)
+# or an npm package served by jsDelivr, which is the reliable choice:
+https://cdn.jsdelivr.net/npm/<index-package>/index.json
+```
+
+Users add it under **Plugins → Discover → Index sources**. A source gets 15 seconds to load, so keep
+it small and CDN-served. Until either list exists, the README's install line is **Add plugin** with
+`dsh-asc-hub` — which needs nothing but npm.
+
+## What the plugin itself reports
+
+The panel footer keeps a slot for the update tag and the `update.apply` action exists for the half
+the plugin can update by itself (the `asc` engine: `engine.install('brew')`). For the plugin half the
+Host answers `MANUAL_UPDATE_REQUIRED`, because installation belongs to the Plugin Manager and only it
+holds the profile lock, the selection and the rollback. `status.update` is currently a constant
+`{ available: false }`: the footer tag lights only for a host-side answer, and the authoritative
+"update available" lives in **Plugins → Installed**.

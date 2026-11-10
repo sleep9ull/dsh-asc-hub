@@ -14,7 +14,7 @@ Store Connect, this machine, or nothing, and what can go wrong.
 | `local-write` | this machine only (installs the engine, stores a key in the Keychain) | none — **allowed in `read-only` mode**, because otherwise onboarding could never finish. Panel-only actions refuse the model with `CLIENT_ONLY`; a tool-called `local-write` asks for Host approval. |
 | `write` | App Store Connect state | `mode: write` (`READ_ONLY_MODE`) and `input.confirm: true` (`CONFIRM_REQUIRED`); the tool caller also needs Host approval (`APPROVAL_DENIED`). |
 
-Only these four actions need publish mode: `builds.upload`, `testflight.distribute`,
+Only these four actions need write mode: `builds.upload`, `testflight.distribute`,
 `testflight.submitBeta`, `release.submit`. Installing the engine, signing in, logging out and
 switching profiles are local actions and work in the default `read-only` mode.
 
@@ -89,7 +89,7 @@ Runs with a 15-minute deadline, streams nothing (the panel shows the operation a
 phase only leaves `engine` when a version is found.
 
 What the user must confirm: pressing the install button. It is a local action, so no `input.confirm`
-field and no publish mode are needed; a tool-driven install asks for the Host approval instead
+field and no write mode are needed; a tool-driven install asks for the Host approval instead
 (`APPROVAL_DENIED` on refusal).
 
 Failure modes: `BREW_MISSING` (brew method, no brew), `INSTALL_FAILED` (child exited non-zero),
@@ -127,7 +127,7 @@ refreshed `AuthState`. If the `.p8` is over-permissive, `asc` refuses it; the pa
 `asc auth login` by hand).
 
 What the user must confirm: submitting the panel's sign-in form. There is no `input.confirm` field
-and no publish mode for a local action; the handoff is the confirmation.
+and no write mode for a local action; the handoff is the confirmation.
 
 Failure modes: `ASC_AUTH_FAILED` (key rejected: wrong key id/issuer, wrong key type, revoked key),
 `KEY_FILE_UNSAFE` (`.p8` readable by others; the panel shows the `chmod 600`), `TIMEOUT`
@@ -151,7 +151,7 @@ Removes one profile (or all profiles with `input.all: true`) from the Keychain a
 file. This is destructive: the key must be supplied again to sign back in. Returns the refreshed
 `AuthState`.
 
-What the user must confirm: the panel action itself; no `input.confirm` field and no publish mode.
+What the user must confirm: the panel action itself; no `input.confirm` field and no write mode.
 
 Failure modes: `INVALID_INPUT` (missing/unknown `name`), `ASC_FAILED`, `TIMEOUT`, `CLIENT_ONLY`.
 
@@ -163,7 +163,7 @@ asc auth switch --name "OtherKey"
 
 Makes a stored profile the default for later operations. No key material moves.
 
-What the user must confirm: the panel action itself; no `input.confirm` field and no publish mode.
+What the user must confirm: the panel action itself; no `input.confirm` field and no write mode.
 
 Failure modes: `ASC_FAILED` with the profile list in the redacted stderr, `TIMEOUT`, `CLIENT_ONLY`.
 
@@ -177,6 +177,43 @@ Normalized to `{ ok, summary, checks: [{ name, status, message }] }`. `asc auth 
 even with warnings, so the Host reads the payload, not the exit code.
 
 Failure modes: `ASC_FAILED`.
+
+## Inherited skill pack
+
+### `skills.detect` — read
+
+Reads `~/.agents/.skill-lock.json` plus `~/.agents/skills/asc-cli-usage/SKILL.md` and reports
+`{ installed, count, ref, installedAt, root, shippedRef, update, checkedAt }`. An unreadable or
+malformed lock reads as "not installed"; it never throws.
+
+`shippedRef` comes from the engine itself — `asc install-skills --help` names the reviewed commit it
+would check out (`Checks out the reviewed skills commit <sha>`) — so "there is an update" is a fact
+about the installed engine, not a guess, and it costs one local help read per engine build (cached by
+`path@version`), no network and no checkout. `update` is true only when both pins are known and differ;
+a short sha still matches its full form, and an unparsable help text means "unknown", never "stale".
+
+### `skills.install` — local-write · quiet
+
+Runs `asc install-skills` exactly as a user would: the CLI checks out its pinned reviewed commit with
+git and writes the skill documents into the global agent-skills directory. Local machine change, so it
+is allowed in `read-only` mode; `quiet` keeps it out of the trigger's five-word vocabulary. The result
+carries the installer's last output line, which is what the panel shows when it fails.
+
+This plugin does not vendor those skills and does not rewrite them: the console reports whether they
+are present, and the model uses `asc-*` skills for the long tail (metadata, screenshots, signing,
+pricing, ads, workflows) while `asc_hub` keeps the shipping funnel — upload, TestFlight, submission
+and the reads the panel shows.
+
+## Mode switch
+
+### `mode.set` — local-write · panel-only
+
+No `asc` command: it flips the Hub's own `mode` for this process, which decides both the
+gating of `write` actions and whether `--read-only` is passed to `asc` on data-plane calls.
+The panel's footer pill calls it; the model cannot (`CLIENT_ONLY`), and the change is not
+persisted — the `asc-hub` row's `config.mode` decides what the next start does.
+
+Failure modes: `INVALID_INPUT` (a mode other than `read-only` / `write`), `CLIENT_ONLY`.
 
 ## Apps
 
@@ -197,11 +234,28 @@ action is `APP_NOT_FOUND`; an action that needs an app id and got none is `APP_N
 ### `builds.list` — read
 
 ```bash
-asc builds list --app "APP_ID" --sort -uploadedDate --limit 20 --output json
+asc builds list --app "APP_ID" --sort -uploadedDate --limit 10 \
+  --include preReleaseVersion,buildBetaDetail,betaGroups --output json
 ```
 
-Returns `{ builds: [{ id, version, buildNumber, processingState, uploadedDate, expired }] }`.
-`processingState` is the source of truth for whether a build can be distributed or submitted.
+`limit` defaults to 10 and is clamped to 1–50; the panel asks for 3. Returns
+`{ builds: [{ id, version, buildNumber, processingState, uploadedDate, expired, internal, external,
+internalBuildState, externalBuildState }] }`.
+
+The three includes are not optional for the panel's reading of a build:
+
+- `preReleaseVersion` supplies the marketing version. A build's own
+  `attributes.version` is **CFBundleVersion** — the build number — so without the
+  include a row can only say `1`, never `1.0.1 (1)`.
+- `buildBetaDetail` carries `internalBuildState` / `externalBuildState`, Apple's
+  per-build TestFlight state.
+- `betaGroups` says which groups the build was actually added to, and each group's
+  `isInternalGroup` decides which TestFlight audience that is.
+
+`internal` / `external` are derived, and mean "this build reached that audience":
+true when the build sits in a group of that kind, or when the matching build-beta
+state is `READY_FOR_BETA_TESTING` / `IN_BETA_TESTING`. `processingState` is the
+source of truth for whether a build can be distributed or submitted.
 
 Failure modes: `APP_NOT_SELECTED`, `APP_NOT_FOUND`, `ASC_AUTH_MISSING`, `ASC_FAILED`.
 
@@ -222,8 +276,10 @@ processing to finish; without it the call returns after the upload commit. Presi
 request-header values are redacted by `asc` by default — the console never passes
 `--include-sensitive`.
 
-What the user must confirm: the confirm step. This is the slowest ordinary operation: a 10-minute
-deadline, or 30 minutes when it waits for processing.
+The panel has **no upload form**: the card lists builds only, so this action is reached through the
+`asc_hub` tool or the `asc` CLI. What the user must confirm: the confirm step (tool) or the explicit
+`confirm: true` input. This is the slowest ordinary operation: a 10-minute deadline, or 30 minutes
+when it waits for processing.
 
 Failure modes: `PROCESSING_PENDING` (the build is not `VALID` yet; retry after processing),
 `TIMEOUT`, `ASC_FAILED` (invalid or unsigned IPA, expired credentials), `CONFIRM_REQUIRED`,
@@ -261,6 +317,10 @@ submits it.
 sends anything; if it cannot prove readiness it stops without sending, and the console reports the
 failure instead of claiming the distribution happened.
 
+In the panel the **Distribute build** button *is* the confirmation: it stays disabled until at least
+one group is selected, and the click supplies `input.confirm`. There is no separate tick to remove. A
+tool caller still needs `confirm: true` plus the Host approval.
+
 What the user must confirm: the confirm step.
 
 Failure modes: `PROCESSING_PENDING`, `ASC_FAILED` (readiness unprovable, unknown group, expired
@@ -274,7 +334,8 @@ asc testflight review submit --build-id "BUILD_ID" --confirm
 
 Submits a build for beta app review, which external TestFlight groups require. `asc` requires
 `--confirm`; the console supplies it only after the user confirmed the action. The build must have
-been added to an external group first.
+been added to an external group first. The panel's own beta-review controls were removed, so this
+action is reached through the tool or the CLI.
 
 Failure modes: `PROCESSING_PENDING` (build not `VALID`), `ASC_FAILED` (no external group, invalid
 build state), `APPROVAL_DENIED`, `CONFIRM_REQUIRED`.
@@ -325,6 +386,7 @@ asc review submit \
 already be prepared (metadata and build staged); run `release.readiness` first and treat its blockers
 as the work list.
 
+The panel's Release card is parked, so this action is reached through the tool or the CLI.
 What the user must confirm: the confirm step, then (for the tool caller) the Host approval. This is
 the one action that sends an app to Apple's review queue; there is no dry run exposed in v1.
 

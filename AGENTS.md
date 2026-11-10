@@ -29,12 +29,16 @@ implements every operation once; the Web Client and the `asc_hub` tool are adapt
 | `host/dispatch.js` | The `ACTIONS` table (class + `clientOnly`), gating, operation/lastError observation, Hub state derivation, error envelope. |
 | `host/rpc.js` | Client adapter: one POST route per action under `/api/asc-hub/`, wire validation, responses. |
 | `host/tool.js` | Model adapter: flat tool parameters, action forwarding, Host approval for tool-called `local-write`/`write` actions; credential actions stay model-unreachable. |
+| `host/skill.js` | The plugin's own model skill: `skills/asc-hub/SKILL.md` parsed and registered via `ctx.skills.register` (a package directory is not a skill root, so discovery alone never finds it). Optional. |
+| `host/skills.js` | The inherited `asc` skill pack: detection from `~/.agents` and the `asc install-skills` call. Neither vendored nor rewritten. |
+| `host/workspace.js` | Where the session works: the Harness's effective directory (`ctx.sessions` → `ctx.workingDirectory`) plus best-effort git facts (repo, branch, linked worktree). |
+| `host/build.js` | Building that directory: find the Xcode workspace/project, list schemes, and run `asc xcode archive` → `export` → `builds upload --wait`. Version and build number travel as build settings, never as a project edit. |
 | `host/redact.js` | Redaction rules, output clamping, identifier tails. |
 | `client.js` | Hand-written plain-JS browser module: header trigger, right-sidebar console, onboarding. No build. |
 | `locale/*.json` | Plugin display metadata (`meta.title`, `meta.description`) for the Plugin Manager; the panel's `en`/`zh` dictionaries live inline in `client.js`. |
 | `cordis.patch.yml` | Bundle patch inserting the `asc-hub` row (`name: dsh-asc-hub`). |
-| `docs/` | CONTRACT (authoritative), ARCHITECTURE, OPERATIONS, ONBOARDING, UPSTREAM-ASC, research. |
-| `skills/asc-hub/SKILL.md` | The compact model-facing skill for the `asc_hub` tool. |
+| `docs/` | CONTRACT (authoritative), ARCHITECTURE, OPERATIONS, ONBOARDING, UPSTREAM-ASC, RELEASING, WORKFLOW, research. |
+| `skills/asc-hub/SKILL.md` | The compact model-facing skill for the `asc_hub` tool, registered at runtime by `host/skill.js` (it is not discovered from disk). |
 | `THIRD_PARTY_NOTICES.md`, `LICENSE` | MIT for the plugin; verbatim MIT notice for `asc` (not bundled). |
 
 If you split or rename a Host module, update this table and the module map in
@@ -57,8 +61,12 @@ These do not regress. Each has a cheap test; run the test before claiming the ch
    registered with both an `en` and a `zh` dictionary (currently inline in `client.js`); no literal
    user-facing copy in components. Plugin display metadata lives in `locale/en.json` /
    `locale/zh.json` and is edited there.
-5. **Host-theme styling only.** CSS uses `--dsw-alias-*` tokens from `cordis_inspect_query` →
-   `Theme.listTokens`; literal colors are for artwork/SVG only.
+5. **Host-theme styling only, with one documented exception.** CSS uses `--dsw-alias-*` tokens from
+   `cordis_inspect_query` → `Theme.listTokens`. The single literal is the product accent:
+   `--asc-hub-accent: #0071e3` (App Store Connect blue), declared once on `[data-asc-hub]` and aliased
+   onto `--dsw-alias-brand-primary` inside this subtree only, so the host UI is never repainted and no
+   rule repeats the literal. *Test:* the client smoke fails unless there is exactly one literal, it is
+   `#0071e3`, and it is aliased. Artwork keeps its own colors in `icon.svg`.
 6. **Key material never persists, logs or echoes.** The plugin hands key ids/paths to `asc`; `asc`
    and the macOS Keychain own storage. Every outbound string passes `host/redact.js`; ids are
    shortened to their last four characters (`keyIdTail`).
@@ -74,7 +82,10 @@ These do not regress. Each has a cheap test; run the test before claiming the ch
 9. **`asc` is external.** No vendored binary, no copied command implementation. Every `asc` command
    quoted in docs or code is verifiable with `asc <group> --help` on the installed 6.5.x; probe
    read-only, never run a mutating command to check a flag.
-10. **Nothing is written to the session log or model history by the panel path.** That is why the
+10. **Skills are inherited, not vendored.** `asc` ships its own reviewed skill pack
+    (`asc install-skills`, pinned commit, `~/.agents/skills`); this plugin reports and can install it,
+    never copies or rewrites it. Its own skill is the funnel-facing document, registered at runtime.
+11. **Nothing is written to the session log or model history by the panel path.** That is why the
     transport is the Fetch route and not a session command.
 
 ## Adding an operation
@@ -152,6 +163,16 @@ Use the `plugin_manager` tool; do not reproduce installation with shell commands
   the only credential handoff by design.
 - **Publish mode is for App Store Connect writes only.** `engine.install` and the credential actions
   are `local-write` and deliberately work in `read-only`; do not add a `mode` check to them.
+
+## Releasing
+
+`package.json` `version` is the single source; DSH reads npm for updates and never reads GitHub
+Releases, so **`npm publish` is the release** and a git/tarball/link install is not updatable in
+place. Keep the CHANGELOG heading, `git tag v<version>` and the published version identical, and
+re-verify `engines.dsh` on every DSH minor — it gates mounting, and `semver.satisfies` here runs with
+`includePrerelease`. Full checklist and the per-install-kind upgrade matrix: [docs/RELEASING.md](docs/RELEASING.md).
+The day-to-day loop (when to commit, when to bump, release day, the 72 hours after, incidents) is
+[docs/WORKFLOW.md](docs/WORKFLOW.md).
 
 ## Where the contract lives
 

@@ -124,7 +124,8 @@ export function createAuth(ctx, config, asc, engine) {
   }
 
   async function login(input, options = {}) {
-    const path = await binary()
+    // Validate the human's input before probing the engine: a typo must answer
+    // immediately and must not depend on what is installed on this machine.
     if (!/^[A-Za-z0-9]{4,}$/.test(String(input.keyId ?? ''))) {
       fail('INVALID_INPUT', 'The Key ID looks wrong; it is the 10-character id shown next to the key name.')
     }
@@ -134,6 +135,7 @@ export function createAuth(ctx, config, asc, engine) {
     if (!input.privateKeyPath) {
       fail('INVALID_INPUT', 'A private key path is required.')
     }
+    const path = await binary()
     const existing = await profileNames()
     let name = input.name
     if (!name) {

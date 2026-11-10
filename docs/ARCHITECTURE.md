@@ -217,6 +217,10 @@ about selection.
 | `host/dispatch.js` | the `ACTIONS` table, gating, operation observation, `HubState` + trigger-label derivation, error envelope |
 | `host/rpc.js` | Fetch adapter: one route per action, wire-envelope validation, 400 responses; 401/403 come from the `/api` fence before the handler |
 | `host/tool.js` | `asc_hub` adapter: flat tool parameters, action forwarding, Host approval for writes |
+| `host/skill.js` | The plugin's own model skill: reads `skills/asc-hub/SKILL.md` and registers it through `ctx.skills.register`, because a package directory is not a skill root. Optional: no registry, no skill. |
+| `host/skills.js` | The inherited `asc` skill pack: read-only detection from `~/.agents` and the `asc install-skills` call. |
+| `host/workspace.js` | the session's effective directory and its git shape (repository, branch, linked worktree); the directory is the Harness's answer, the git facts are best effort |
+| `host/build.js` | the build the panel can run on that directory: nearest Xcode workspace/project, its schemes, archive → export → upload with version and build number as build settings |
 | `host/redact.js` | redaction rules, output clamping, identifier tails |
 | `client.js` | hand-written browser module: status button in `conversation.session.header.utilities`, console tab in `sidebar.right.pane.tab` (+ its title), inline `en`/`zh` locale dictionaries registered under namespace `asc-hub` |
 | `locale/*.json` | plugin display metadata (`meta.title` / `meta.description`) read by the Plugin Manager |

@@ -19,9 +19,9 @@ client  -> ctx.connection.rpc.call('/api', 'asc-hub/<action>', { action, input }
 host    -> ctx.connection.fetch.register({ path: '/api/asc-hub/<action>', methods: ['POST'], requestBody: 'buffered', fetch })
 ```
 
-* The route lives under the existing `/api` bridge, so the browser-trust fence
-  answers before plugin code runs: unauthenticated requests get 401, a non-owner
-  Peer gets 403. The plugin invents no authentication of its own.
+* The route lives under the existing `/api` bridge, so the browser-trust
+  fence answers before plugin code runs: unauthenticated requests get 401, a
+  non-owner Peer gets 403. The plugin invents no authentication of its own.
 * Nothing is written to the session log and nothing enters model history, so the
   panel can refresh freely.
 * The host handler validates the wire envelope (`type === 'client-request'`,
@@ -73,6 +73,11 @@ Actions marked **panel-only** (`auth.login`, `auth.importKey`, `auth.logout`,
 `auth.switch`) exist so the human owns the credential handoff: the model is told to
 ask the user, and receives `CLIENT_ONLY` if it tries.
 
+A `write` still requires `input.confirm === true` on the wire; how the panel earns it
+is a UI decision, not a contract one. `testflight.distribute` treats its single
+**Distribute build** button as the confirmation — the group selection plus that click —
+instead of asking for a second tick.
+
 ### Hub state
 
 | action | kind | input | data |
@@ -84,6 +89,10 @@ ask the user, and receives `CLIENT_ONLY` if it tries.
 | action | kind | input | data |
 |---|---|---|---|
 | `engine.detect` | read | — | `EngineState` |
+| `update.apply` | local-write · panel-only | `{ "scope": "core" \| "hub" }` | core: `EngineState` after a reinstall; hub: refused with `MANUAL_UPDATE_REQUIRED` (the Plugin Manager owns installation) |
+| `skills.detect` | read | — | `{ "installed", "count", "ref", "installedAt", "root", "shippedRef", "update", "checkedAt" }` — the inherited `asc` skill pack, read from `~/.agents` |
+| `skills.install` | local-write · quiet | — | `{ "installed", "changed", "log", "state" }` — runs `asc install-skills`; `quiet` means it does not take over the trigger label |
+| `mode.set` | local-write · panel-only | `{ "mode": "read-only" \| "write" }` | `HubState` — flips this session's gating and the flags handed to `asc`; **not persisted**, the config row still decides the next start |
 | `engine.install` | local-write | `{ "method": "brew" \| "curl" }` | `{ "method", "log", "fallback"?, "fallbackReason"? }` — re-detect with `engine.detect` afterwards |
 
 `EngineState`:
@@ -146,15 +155,73 @@ The PEM is never persisted by this plugin, never logged, and never echoed back.
 |---|---|---|---|
 | `apps.list` | read | `{ "limit"?: number, "name"?: string }` | `{ "apps": [{ "id", "name", "bundleId", "sku"?, "primaryLocale"? }] }` |
 
+### Workspace
+
+| action | kind | input | data |
+|---|---|---|---|
+| `workspace.info` | read · panel-only | `{ "sessionId"?: string }` | `{ "cwd", "display", "repo", "branch", "worktree", "upstream", "ahead", "behind", "changed", "untracked", "clean", "build": { "xcode", "kind", "project", "name", "ios", "schemes", "ready", "reason" }, "checkedAt" }` |
+| `build.create` | write · panel-only | `{ "appId", "sessionId"?, "version"?, "buildNumber"?, "scheme"?, "confirm": true }` | `{ "scheme", "project", "archivePath", "ipaPath", "version", "buildNumber", "buildId", "log" }` — archives the session's working directory, exports an `.ipa`, uploads it and waits |
+
+`workspace.info` answers "where is this session working": `cwd` is the Harness's own
+effective directory for that session (`ctx.sessions` → `ctx.workingDirectory`, falling
+back to the profile default), `display` abbreviates it against the home directory, and
+the git facts are best effort — `repo`, `branch` and `worktree` are null/false when the
+directory is not a repository, git is unavailable or the read times out. `worktree` is
+true when the git directory differs from the common directory, which is exactly what a
+linked worktree looks like. It is panel-only: the model already knows its directory
+from the system prompt.
+
+`build` says whether that directory can be built, and why not when it cannot. `kind` /
+`project` / `name` name the nearest `.xcworkspace` (preferred) or `.xcodeproj` within two
+levels; `ios` says whether that project targets iOS (its `project.pbxproj` carries
+`IPHONEOS_DEPLOYMENT_TARGET` or an `iphoneos` SDK root); `xcode` says whether a full Xcode
+is selected (`xcode-select -p` — the Command Line Tools alone cannot archive, even though
+`xcodebuild` resolves); `schemes` is what `xcodebuild -list` returned; `ready` is exactly
+"Xcode + an iOS project that lists at least one scheme". `reason` is ordered the way a
+person asks the question and is `null` only when `ready`:
+
+| `reason` | meaning | repairable by the panel's auto-fix prompt |
+|---|---|---|
+| `no-project` | nothing Xcode-shaped here — not an iOS project | no |
+| `not-ios` | an Xcode project, but not an iOS app | no |
+| `no-xcode` | an iOS project, but this machine has no full Xcode | yes (the prompt asks the model to diagnose the toolchain) |
+| `unloadable` | an iOS project whose schemes do not list — it has build errors | yes |
+
+A directory without a project is a normal answer, not an error.
+
+`build.create` builds **the session's working directory** — the code the panel is looking
+at — never a file the user picks: `asc xcode archive` (version and build number passed as
+`MARKETING_VERSION` / `CURRENT_PROJECT_VERSION` build settings, so the checkout is never
+rewritten) → `asc xcode export` → `asc builds upload --wait`, with artifacts in a
+temporary directory. The scheme is the first one xcodebuild lists unless the input names
+one. A directory that cannot build fails with `BUILD_UNAVAILABLE`.
+
+The working tree is read from one `git status --porcelain=v1 --branch`, which answers
+three questions at once: `upstream` (the branch it tracks, `origin/main` by default in
+these repos), the drift `ahead` / `behind` in commits, and what is uncommitted —
+`changed` counts tracked paths (staged, unstaged or conflicted), `untracked` counts
+`??` entries, and `clean` is exactly "both are zero". Ignored paths are never counted.
+No fetch runs, so the drift is against the last known upstream, not the network. When
+`git status` fails, every tree field is `null` and the panel simply omits that line.
+
 ### Builds and TestFlight
 
 | action | kind | input | data |
 |---|---|---|---|
-| `builds.list` | read | `{ "appId", "limit"?: number }` | `{ "builds": [{ "id", "version", "buildNumber", "processingState", "uploadedDate", "expired" }] }` |
+| `builds.list` | read | `{ "appId", "limit"?: number }` | `{ "builds": [{ "id", "version", "buildNumber", "processingState", "uploadedDate", "expired", "internal", "external", "internalBuildState", "externalBuildState" }] }` |
 | `builds.upload` | write | `{ "appId", "ipaPath", "version"?, "buildNumber"?, "wait"?: boolean, "confirm": true }` | `{ "log": string, "buildId"?: string }` |
 | `testflight.groups` | read | `{ "appId" }` | `{ "groups": [{ "id", "name", "internal", "publicLink"?, "testerCount"? }] }` |
 | `testflight.distribute` | write | `{ "appId", "buildId", "groupIds"?: string[], "groupNames"?: string[], "whatsNew"?: string, "confirm": true }` | `{ "log": string }` |
 | `testflight.submitBeta` | write | `{ "appId", "buildId", "confirm": true }` | `{ "log": string }` |
+
+`builds.list` asks asc for three includes — `preReleaseVersion`, `buildBetaDetail`,
+`betaGroups` — because none of what a person reads on a build row is on the build
+resource itself: `version` there is CFBundleVersion, so `version` in the answer is the
+marketing version from `preReleaseVersion` and `buildNumber` is the build number.
+`internal` / `external` mean "this build reached that TestFlight audience", true when
+the build is in a group of that kind or when `internalBuildState` /
+`externalBuildState` is `READY_FOR_BETA_TESTING` / `IN_BETA_TESTING`; the raw states
+are returned beside them for callers that need the nuance.
 
 `testflight.distribute` writes the "What to Test" note first
 (`asc builds test-notes create --build-id … --locale … --whats-new …`) when
@@ -165,9 +232,28 @@ The PEM is never persisted by this plugin, never logged, and never echoed back.
 
 | action | kind | input | data |
 |---|---|---|---|
-| `release.readiness` | read | `{ "appId", "version"?: string }` | `{ "ready": boolean, "blockers": [{ "code", "message" }], "version"?, "raw"?: unknown }` |
-| `release.status` | read | `{ "appId" }` | `{ "version"?, "state"?, "buildNumber"?, "submittedDate"?, "raw"?: unknown }` |
-| `release.submit` | write | `{ "appId", "version"?: string, "buildId"?: string, "confirm": true }` | `{ "log": string }` |
+| `release.readiness` | read | `{ "appId", "version"?: string }` | `{ "ready": boolean, "blockers": [{ "code", "message", "detail"? }], "warnings": number, "version"?, "raw"?: unknown }` |
+| `release.status` | read | `{ "appId" }` | `{ "version"?, "versionId"?, "versionState"?, "reviewState"?, "state"?, "buildNumber"?, "submittedDate"?, "raw"?: unknown }` |
+| `release.versions` | read | `{ "appId" }` | `{ "versions": [{ "id", "version", "state", "buildId", "createdDate"? }] }` — every App Store version with the build it carries |
+| `release.publish` | write | `{ "versionId": string, "confirm": true }` | `{ "versionId", "released": true, "raw"?: unknown }` — `asc versions release --version-id … --confirm`, for a version App Review already approved (`PENDING_DEVELOPER_RELEASE`) |
+| `release.submit` | write | `{ "appId", "version"?: string, "buildId"?: string, "platform"?: string, "confirm": true }` | `{ "log": string }` — attaches the build to the version and submits; **creates the version** when that version string does not exist yet |
+
+`release.status` separates the two states a person asks about: `versionState` is where the App
+Store version is (`PREPARE_FOR_SUBMISSION`, `WAITING_FOR_REVIEW`, `IN_REVIEW`,
+`PENDING_DEVELOPER_RELEASE`, `READY_FOR_DISTRIBUTION`, …) and `reviewState` is where the review
+submission is (`WAITING_FOR_REVIEW`, `IN_REVIEW`, `COMPLETE`, …). `state` keeps the old meaning —
+the version state when there is one — so existing callers do not change. `release.publish` is the
+one action that can only ever be right for `PENDING_DEVELOPER_RELEASE`: Apple-scheduled releases
+move on their own, and a distributed version is not releasable again.
+
+`release.versions` is the answer to "has this build been reviewed?": App Review applies to a
+version, so a build is reviewed exactly when the version carrying it reached
+`READY_FOR_DISTRIBUTION` (or later). A build that no version carries — a TestFlight-only build — was
+never reviewed, which is why the panel asks the Host instead of guessing from version numbers.
+`testflight.distribute` adds the build to the selected groups. When any of them is an **external**
+group it also submits the build for beta review (`add-groups --submit --confirm`), because assigning
+an external group alone does not deliver anything to its testers; internal groups need no review, so
+they are added without it.
 
 `release.submit` resolves the latest valid build itself when `buildId` is absent and
 then runs `asc review submit --app … --version … --build-id … --confirm`.
@@ -217,9 +303,28 @@ One derived object keeps the trigger and the panel in sync. `status` returns it:
   "operation": { "id": "...", "kind": "upload | distribute | submit", "startedAt": "..." } | null,
   "lastError": { "code": "...", "message": "..." } | null,
   "mode": "read-only | write",
+  "hub": { "version": "0.1.0" },
+  "skills": { "installed": true, "count": 25, "ref": "f52c4f0", "installedAt": "...", "root": "...", "checkedAt": "..." },
+  "update": { "available": false, "scope": "hub | core | null", "latest": "6.6.0 | null" },
   "checkedAt": "2026-11-09T05:00:00.000Z"
 }
 ```
+
+`skills` reports the inherited skill pack: `asc install-skills` writes 25 reviewed `asc-*` skill
+documents into the global agent-skills directory (`~/.agents/skills`) pinned to a commit, and this
+plugin neither vendors nor rewrites them. `ref` is the pin the installed pack records; `shippedRef` is
+the pin the installed engine *now* ships, read from `asc install-skills --help` (offline, no checkout),
+and `update` is true only when both are known and differ. The console shows the state in a quiet row
+that opens by default, with `install` or `update` at the end of that line when there is something to
+do; the model learns it from `status` and uses the `asc-*` skills when present.
+
+`hub.version` is read once from the plugin's own `package.json`, so the footer can report
+both halves of the product on one line: `version 0.1.0 © sleep9ull · engine asc 6.5.3`, where
+the author and the engine are links to their GitHub projects. `update` is the contract the
+footer reserves space for: when a release feed says something newer exists, `available`
+becomes `true`, `scope` says which half (`core` re-runs the installer from the panel, `hub`
+belongs to the plugin manager) and `latest` carries the version string. Nothing probes a
+feed yet, so it is `{ available: false, scope: null, latest: null }`.
 
 Phase is derived, never stored:
 
@@ -230,6 +335,12 @@ operation !== null                               -> "busy"
 lastError !== null                               -> "error"
 otherwise                                        -> "ready"
 ```
+
+Onboarding ends with the person, not with the state machine: `phase: "ready"` alone does not
+open the console. The panel keeps its own completion flag in browser storage
+(`dsh-asc-hub:onboarded`) and sets it only when `Start to build` is pressed; a refresh after
+signing in therefore lands on step three, and a sign-out drops back to onboarding because the
+phase is `login` again.
 
 `phase: "start"` is the first contact before any probe finished. The trigger shows
 `asc: <label>`; that string is the user's own vocabulary for the product:
@@ -263,6 +374,15 @@ Before any text crosses the wire, the Host removes:
 Key ids and issuer ids are not secrets without the private key, but panel copy still
 shows only their last 4 characters (`keyIdTail`).
 
+## Readiness
+
+`release.readiness` runs `asc validate --app <id> [--version <v>]` and reads its report the way asc
+writes it: `remediation.steps[]` ordered by `order`, where `blocking: true` is a blocker and
+`severity: warning` is only counted. `checks[]` is the same set without the ordering, so a hard
+`severity: error` there is the fallback; the older `blockers` / `issues` lists stay accepted. A
+non-zero exit with no structured blocker still becomes one `ASC_FAILED` blocker carrying the last
+stderr line, because silence would look like a pass. `ready` is exactly "exit 0 and no blockers".
+
 ## Errors
 
 | code | meaning | panel action |
@@ -280,7 +400,9 @@ shows only their last 4 characters (`keyIdTail`).
 | `READINESS_BLOCKED` | readiness reported blockers | show the blockers |
 | `READ_ONLY_MODE` | write action while `mode: read-only` | point at `mode` |
 | `CONFIRM_REQUIRED` | write action without `input.confirm === true` | show the confirm step |
-| `CLIENT_ONLY` | the model tried a panel-only sign-in action | ask the user to use the panel |
+| `BUILD_UNAVAILABLE` | the working directory has no Xcode project, or this session has no directory | ask the user to open the app's directory |
+| `MANUAL_UPDATE_REQUIRED` | a plugin-half update has to go through the Plugin Manager |
+| `CLIENT_ONLY` | the model tried a panel-only action | ask the user to use the panel |
 | `APPROVAL_DENIED` | the human declined the approval | keep the panel state |
 | `TIMEOUT` | the child exceeded its deadline | offer retry |
 | `ASC_FAILED` | non-zero exit with no better classification | show the redacted output |

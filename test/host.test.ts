@@ -1,4 +1,5 @@
 import { strict as assert } from 'node:assert'
+import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
 import { normalizeConfig } from '../dist/host/config.js'
 import { classifyExit, field, parseJson, pickArray } from '../dist/host/asc.js'
@@ -194,7 +195,10 @@ test('skill registration is optional and never breaks the plugin', async () => {
   assert.equal(registerSkill(withService), true)
   assert.equal(registrations.length, 1)
   assert.equal(registrations[0].name, 'asc-hub')
-  assert.equal(registrations[0].source, 'dsh-asc-hub')
+  // The skill reports its package as the source; read the manifest so a rename
+  // cannot leave this assertion agreeing with itself.
+  const manifest = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'))
+  assert.equal(registrations[0].source, manifest.name)
   assert.ok(registrations[0].content.length > 100)
 })
 

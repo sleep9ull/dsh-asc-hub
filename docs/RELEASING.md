@@ -1,4 +1,4 @@
-# Releasing `dsh-asc-hub`
+# Releasing `@sleep9ull/dsh-asc-hub`
 
 How a version of this plugin becomes something a person can install, and how that person upgrades
 later. The short version: **the version is `package.json`'s `version`, and the upgrade channel is
@@ -83,50 +83,75 @@ Rules that never bend:
   hours and it is still the wrong tool — ship `0.2.1`.
 - `git tag v<version>` must equal `package.json` `version` and the CHANGELOG heading
   (`## [0.2.0] — YYYY-MM-DD`).
-- `HUB_VERSION` in `host/dispatch.js` is read once from `package.json` at Host load, so the footer
+- `HUB_VERSION` in `src/host/dispatch.ts` is read once from `package.json` at Host load, so the footer
   reports the version of the **loaded** copy: after a bump, restart the Host to see it. A linked
   checkout shows the new number only after a restart, not after a page refresh.
 
 ## Release checklist
 
-1. `npm test` (Host) and `node client/__smoke__.mjs` (Client) green; `npm run check` clean.
+1. `npm test` (Host) and `node --experimental-strip-types client/__smoke__.mts` (Client) green;
+   `npm run check` clean.
 2. Edit `package.json` `version`.
 3. Move `[Unreleased]` in `CHANGELOG.md` to `## [x.y.z] — <date>`, leave a fresh `[Unreleased]`, and
    add the link reference at the bottom.
 4. If the wire changed, `docs/CONTRACT.md` changed in the same commit (invariant in `AGENTS.md`).
-5. Commit, then `git tag -a vX.Y.Z -m "dsh-asc-hub X.Y.Z"`.
+5. Commit, then `git tag -a vX.Y.Z -m "@sleep9ull/dsh-asc-hub X.Y.Z"` — use `git tag -f` when the
+   tag already sits on an older commit. The first public release does exactly that: `v0.1.0` moves
+   from the pre-TypeScript tree to the commit npm actually receives.
 6. `npm publish` — `prepublishOnly` re-runs `check` + tests, and refuses to publish a broken tree.
-   `npm pack --dry-run` first if the `files` list changed (~117 kB packed, 31 files today).
+   `npm pack --dry-run` first if the `files` list changed (~122 kB packed, 46 files today).
+   The README the registry renders is the tarball's `README.md`, and every link in it is absolute:
+   npmjs.com does not resolve relative paths, so `README.en.md`, `docs/**` and `icon.svg` must stay
+   full URLs or they are 404s on the package page.
 7. `git push origin main --follow-tags`.
 8. Create the GitHub Release from the tag, pasting the CHANGELOG section. Attach nothing: npm is the
    artifact.
 9. Re-verify the published copy the way a user gets it — remove the `link:` dependency and install
    the registry version (see below), then confirm the footer reports `x.y.z` after a restart.
-10. **T+1 day:** ask `plugin_market` for `dsh-asc-hub`. Found → the catalog picked it up; absent →
+10. **T+1 day:** ask `plugin_market` for `@sleep9ull/dsh-asc-hub`. Found → the catalog picked it up; absent →
     step 11.
 11. **T+3 days, still absent:** open a listing request with the catalog, and/or publish our own
-    `dsh-asc-hub` index (see [Distribution vs discovery](#distribution-vs-discovery-npm-ships-it-an-index-finds-it)).
+    `@sleep9ull/dsh-asc-hub` index (see [Distribution vs discovery](#distribution-vs-discovery-npm-ships-it-an-index-finds-it)).
 
 Steps 10–11 are discovery only. Skipping them costs nothing at install time — **Add plugin** and
 `dsh plugin add` read npm directly — but it costs every search in Discover.
 
-First publish needs `npm login` once; the package name is unscoped and currently unclaimed
-(`dsh-asc-hub` on npmjs.com). Check with `npm view dsh-asc-hub version` — `E404` means the name is
-still free.
+First publish needs `npm login` once, with the account that owns the `@sleep9ull` scope. The package
+is scoped, so npm treats a publish as **restricted** unless `publishConfig.access` says `public` —
+that field is what keeps the first release from failing with a payment error. Check the name with
+`npm view @sleep9ull/dsh-asc-hub version`: `E404` means nothing is published yet.
+
+## Native install channels
+
+The Harness plugin manager accepts four spec forms (`parseInstallSpec` in `dsh-plugin-manager`): a
+registry `name` / `name@range`, an absolute path (or `file:` / `link:`), a git spec, and an
+`https://…/*.tgz` URL. Only the first is an install path a user should be told to use: the path form
+is the development link, a tarball is pinned to one artifact and never updates, and a git spec is a
+fallback this project does not document.
+
+| channel | what the user does | what has to be true | updates |
+|---|---|---|---|
+| **Plugins → Add plugin**, registry spec | paste `@sleep9ull/dsh-asc-hub` (optionally `@X.Y.Z`) | the version is on npm, at a registry the profile can reach | **Plugins → Installed → Versions** |
+| **Discover**, market index | search and press install | an index lists the package at an npm version or a pinned git commit, and the user added the index under **Discover → Index sources** | per the index entry |
+| git spec (`github:…`, repo URL) | paste it | nothing beyond the repo | `pnpm` re-resolves on install |
+
+One consequence for a release: **publish to npm.** That is the only channel this project documents,
+and it is also what makes the package appear in the community catalog, which is generated from npm —
+a `git`-sourced entry only exists in an index that lists it explicitly.
 
 ## How a user upgrades, per install kind
 
 | installed as | profile dependency | upgrade path |
 |---|---|---|
-| npm registry (what **Add plugin** produces — and Discover too, once the package is listed — saved **exact**) | `"dsh-asc-hub": "0.2.0"` | **Plugins → Installed →** the bundle's page → **Versions** → **Update**. The Host removes the old version and installs `dsh-asc-hub@0.2.1` with the same selection, and reinstalls the old one if the new one fails. The Installed list also flags **Update available**. |
-| CLI-managed profile (`web`, `tui`, your own — **not** the Desktop app's profile, which the app shell owns) | same | `dsh plugin --profile <profile> add dsh-asc-hub@0.2.1` (forwards to pnpm). Recomposition follows; restart if the Host reports `restart-required`. |
-| `plugin_manager` tool | same | `install_bundle` with spec `dsh-asc-hub@0.2.1`; under HMR a same-name install is refused with `already-installed`, so `remove_bundle` first (or let the user press Update). |
-| linked checkout (this repository, `link:/Users/…/dsh-asc-hub`) | `"dsh-asc-hub": "link:…"` | `git pull` in the checkout, then restart the Desktop app / Host process (client-only edits need just a page refresh). **No Versions section** — a link install is not updatable by design. |
+| npm registry (what **Add plugin** produces — and Discover too, once the package is listed — saved **exact**) | `"@sleep9ull/dsh-asc-hub": "0.2.0"` | **Plugins → Installed →** the bundle's page → **Versions** → **Update**. The Host removes the old version and installs `@sleep9ull/dsh-asc-hub@0.2.1` with the same selection, and reinstalls the old one if the new one fails. The Installed list also flags **Update available**. |
+| CLI-managed profile (`web`, `tui`, your own — **not** the Desktop app's profile, which the app shell owns) | same | `dsh plugin --profile <profile> add @sleep9ull/dsh-asc-hub@0.2.1` (forwards to pnpm). Recomposition follows; restart if the Host reports `restart-required`. |
+| `plugin_manager` tool | same | `install_bundle` with spec `@sleep9ull/dsh-asc-hub@0.2.1`; under HMR a same-name install is refused with `already-installed`, so `remove_bundle` first (or let the user press Update). |
+| linked checkout (this repository, `link:/Users/…/dsh-asc-hub`) | `"@sleep9ull/dsh-asc-hub": "link:…"` | `git pull` in the checkout, then restart the Desktop app / Host process (client-only edits need just a page refresh). **No Versions section** — a link install is not updatable by design. |
 | git or tarball | `github:…` / a URL | Re-`add` the new spec. No Versions section. |
 
 A version can also be pinned on the way in, which is the answer to "install exactly this one": the
 market entry's **Versions** list offers **Install** per version; **Add plugin** accepts
-`dsh-asc-hub@0.2.0`; `plugin_manager` → `install_bundle` takes the same spec; the CLI takes the same
+`@sleep9ull/dsh-asc-hub@0.2.0`; `plugin_manager` → `install_bundle` takes the same spec; the CLI takes the same
 string after `add`. Registry installs are saved **exact**, not as a range, so the profile never
 drifts on its own.
 
@@ -148,7 +173,7 @@ lists it is regenerated. Measured against the running app:
 ```text
 plugin_market list_indexes   → one source: https://cdn.jsdelivr.net/npm/dsh-plugin-catalog/index.json
 plugin_market query "memory" → 289 entries        (the index and the search work)
-plugin_market query "dsh-asc-hub" → 0 entries     (not listed yet)
+plugin_market query "@sleep9ull/dsh-asc-hub" → 0 entries     (not listed yet)
 ```
 
 So `npm publish` makes the plugin **installable**; being listed makes it **findable**. Both are worth
@@ -164,17 +189,17 @@ This repository cannot publish into it. Sequence:
 
 1. `npm publish` with the `dsh-plugin` / `deepseek-harness` keywords already declared in
    `package.json`.
-2. **T+1 day:** re-run `plugin_market` with query `dsh-asc-hub`. The catalog looks generated from npm,
+2. **T+1 day:** re-run `plugin_market` with query `@sleep9ull/dsh-asc-hub`. The catalog looks generated from npm,
    so it may appear on its own — verify rather than assume.
 3. **T+3 days, still absent:** open a listing request/PR against their repository with the package
    name.
 
-### Our own index, named `dsh-asc-hub`
+### Our own index, named `@sleep9ull/dsh-asc-hub`
 
 The fallback is an index we control, and it is named after the package: the index document's `title`
-is `dsh-asc-hub` and its single entry's `title` is `dsh-asc-hub` too, so the Discover card, the
+is `@sleep9ull/dsh-asc-hub` and its single entry's `title` is `@sleep9ull/dsh-asc-hub` too, so the Discover card, the
 source picker and the search hit all read exactly the name people install by. The entry's `name`
-stays the npm package name (`dsh-asc-hub`), and every version is `source: { "type": "npm" }` with its
+stays the npm package name (`@sleep9ull/dsh-asc-hub`), and every version is `source: { "type": "npm" }` with its
 `publishTimestamp` and `engines`.
 
 ```text
@@ -185,7 +210,7 @@ https://cdn.jsdelivr.net/npm/<index-package>/index.json
 
 Users add it under **Plugins → Discover → Index sources**. A source gets 15 seconds to load, so keep
 it small and CDN-served. Until either list exists, the README's install line is **Add plugin** with
-`dsh-asc-hub` — which needs nothing but npm.
+`@sleep9ull/dsh-asc-hub` — which needs nothing but npm.
 
 ## What the plugin itself reports
 

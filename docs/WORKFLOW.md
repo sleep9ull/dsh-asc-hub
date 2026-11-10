@@ -17,7 +17,7 @@ all four projects, the 61 host tests against `dist/`, and the 247-check client s
 | copy | how it gets in | code takes effect after | upgradable in place |
 |---|---|---|---|
 | **dev** — linked checkout | `plugin_manager` → `install_bundle` with `/Users/jinchunxu/dev/dsh-asc-hub` (`link:`) | page refresh (client) · app restart (host) | no, by design |
-| **user** — registry | **Plugins → Add plugin** → `dsh-asc-hub` (`saveExact`) | restart when the Host says `restart-required` | yes: **Plugins → Installed → Versions → Update** |
+| **user** — registry | **Plugins → Add plugin** → `@sleep9ull/dsh-asc-hub` (`saveExact`) | restart when the Host says `restart-required` | yes: **Plugins → Installed → Versions → Update** |
 
 **The rule: dev is linked, everything you hand to anyone else is registry.** A `link:` install has no
 Versions section, so a user on one can never upgrade — which is why a checkout is never the answer to
@@ -37,7 +37,8 @@ Work in the linked copy on the `desktop` profile. A cycle is: change → check �
 1. **Change one thing.** Client work is `client.js` (plus the `en`/`zh` dictionaries inline there);
    Host work is `index.js` + `host/**`.
 2. **Static checks.** `node --check` every touched `.js`, then `npm test` (41 host tests) and
-   `node client/__smoke__.mjs` (197 client checks). `npm run check` covers the two entry files.
+   `node --experimental-strip-types client/__smoke__.mts` (248 client checks). `npm run check`
+   covers the two entry files.
 3. **Live check — the step that gets skipped.**
    - Client: refresh the page. The trigger and panel must render with no `slot entry crashed in
      '<slot>'` in the console.
@@ -47,7 +48,7 @@ Work in the linked copy on the `desktop` profile. A cycle is: change → check �
      `docs/CONTRACT.md` (contract first, then `ACTIONS`, then the tool's `INPUT_FIELDS`, then the client).
 4. **Docs ride the same commit** when behavior changed: `docs/CONTRACT.md` for the wire, `README.md` for
    the user, `CHANGELOG.md` gets a line under `[Unreleased]` **only for user-visible changes**.
-5. **Commit.** Style already in the log: `fix: …`, `design: …`, `docs: …`, `release: dsh-asc-hub X.Y.Z`.
+5. **Commit.** Style already in the log: `fix: …`, `design: …`, `docs: …`, `release: @sleep9ull/dsh-asc-hub X.Y.Z`.
 6. **Do not bump the version here.** The version is a release artifact, not a commit artifact.
 
 Fast path for a pure client tweak: `npm run check` → smoke → refresh. Nothing else changed, so
@@ -76,18 +77,19 @@ Rhythm: one release train per week at most (Wednesday is a fine default), and ne
 Run the two "green" and "rot" audits before touching the version; they are cheap and they are the two
 things that silently break.
 
-1. **Green sweep.** `npm test`, `node client/__smoke__.mjs`, `npm run check`.
+1. **Green sweep.** `npm test`, `node --experimental-strip-types client/__smoke__.mts`,
+   `npm run check`.
 2. **Rot audit.**
    - `engines.dsh` still matches what you actually tested (the Desktop runtime reports its version; a
      DSH minor needs a fresh pass and a widened range) — see RELEASING.
    - `docs/CONTRACT.md` matches the code. If they disagree, the contract wins and the code is the bug.
-   - README's install line and the row title still read correctly (**App Store Connect Hub**).
+   - README's install line and the row title still read correctly (**App Store Connect hub**).
 3. **Bump.** `package.json` `version`.
 4. **CHANGELOG.** `[Unreleased]` → `## [x.y.z] — <date>`, fresh `[Unreleased]`, link reference at the
    bottom.
 5. **Pack check** (only when `files`/`exports` changed): `npm pack --dry-run`.
-6. **Commit + tag.** `git commit -m "release: dsh-asc-hub X.Y.Z"` then
-   `git tag -a vX.Y.Z -m "dsh-asc-hub X.Y.Z"`.
+6. **Commit + tag.** `git commit -m "release: @sleep9ull/dsh-asc-hub X.Y.Z"` then
+   `git tag -a vX.Y.Z -m "@sleep9ull/dsh-asc-hub X.Y.Z"`.
 7. **Publish.** `npm publish`. `prepublishOnly` re-runs `check` + tests, so a broken tree cannot ship.
    This step is irreversible — treat it as the one human decision in the routine.
 8. **Push.** `git push origin main --follow-tags`.
@@ -97,15 +99,15 @@ things that silently break.
     looking at what a user gets:
 
     ```
-    plugin_manager → remove_bundle   dsh-asc-hub
-    plugin_manager → install_bundle  dsh-asc-hub@X.Y.Z
+    plugin_manager → remove_bundle   @sleep9ull/dsh-asc-hub
+    plugin_manager → install_bundle  @sleep9ull/dsh-asc-hub@X.Y.Z
     ```
 
     Check: footer reports `X.Y.Z`, **Plugins → Installed** shows the bundle with a **Versions**
-    section, and **Add plugin** with `dsh-asc-hub` finds it by name. Then switch back to dev:
+    section, and **Add plugin** with `@sleep9ull/dsh-asc-hub` finds it by name. Then switch back to dev:
 
     ```
-    plugin_manager → remove_bundle   dsh-asc-hub
+    plugin_manager → remove_bundle   @sleep9ull/dsh-asc-hub
     plugin_manager → install_bundle  /Users/jinchunxu/dev/dsh-asc-hub
     ```
 
@@ -117,15 +119,15 @@ things that silently break.
 | when | what | why |
 |---|---|---|
 | T+0 | the dogfood in step 10 above | proves install, footer version and the Update surface |
-| T+1 | `plugin_market` with query `dsh-asc-hub` | the shipped catalog looks generated from npm; verify instead of assuming |
-| T+3 | still absent → listing request, and/or ship our own `dsh-asc-hub` index | Discover searches an index, **not npm**; without a listing the release is installable but unfindable |
+| T+1 | `plugin_market` with query `@sleep9ull/dsh-asc-hub` | the shipped catalog looks generated from npm; verify instead of assuming |
+| T+3 | still absent → listing request, and/or ship our own `@sleep9ull/dsh-asc-hub` index | Discover searches an index, **not npm**; without a listing the release is installable but unfindable |
 | any time | watch npm download counts | the only adoption signal there is; the plugin collects no telemetry |
 
 If the release is bad:
 
-- **Deprecate, never unpublish.** `npm deprecate dsh-asc-hub@X.Y.Z "broken: <one line>"`. DSH shows the
+- **Deprecate, never unpublish.** `npm deprecate @sleep9ull/dsh-asc-hub@X.Y.Z "broken: <one line>"`. DSH shows the
   message in its version list and its updater will not offer a deprecated version.
-- **Pull `latest` back** only if nobody sensible has upgraded: `npm dist-tag add dsh-asc-hub@X.Y.{Z-1}
+- **Pull `latest` back** only if nobody sensible has upgraded: `npm dist-tag add @sleep9ull/dsh-asc-hub@X.Y.{Z-1}
   latest`.
 - Publish the fix as `X.Y.Z+1`. A version number is never reused.
 
@@ -170,7 +172,7 @@ PRE-FLIGHT
 RELEASE
 [ ] package.json version bumped
 [ ] CHANGELOG: [Unreleased] → [x.y.z] — date, fresh [Unreleased], link ref
-[ ] commit "release: dsh-asc-hub X.Y.Z" + annotated tag vX.Y.Z
+[ ] commit "release: @sleep9ull/dsh-asc-hub X.Y.Z" + annotated tag vX.Y.Z
 [ ] npm publish (irreversible)
 [ ] git push origin main --follow-tags
 [ ] GitHub Release body = CHANGELOG section

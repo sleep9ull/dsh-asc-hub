@@ -47,7 +47,10 @@ button itself keeps saying `Install` until the engine is in place, when it becom
 header announces it to screen readers only.
 
 The panel header is the title and two icon buttons; the engine version and the mode report from a
-footer at the foot of the panel (`asc 6.5.3` left, `read-only mode` / `write mode` right).
+footer at the foot of the panel (`asc 6.5.3` left, `read-only mode` / `write mode` right). That mode
+pill is also the switch: clicking it flips this session between the two (`mode.set`, nothing written
+to disk). The next start follows the row's `config.mode`, so making the change permanent is a config
+edit in the Plugin Manager or a profile override — the panel never rewrites the profile patch.
 
 The numerals and ticks are decorative, so every card also names itself to assistive tech
 ("Step 2 of 3"). Motion is limited to the 200ms colour transition of a node, and is disabled under

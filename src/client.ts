@@ -246,11 +246,25 @@ type ModuleDefinition = {
 
 /** The loader hangs one table off the page: it is not part of Window. */
 interface Window {
-  __ModuleLoader__: { load(definition: ModuleDefinition): void }
+  __ModuleLoader__: { load(definition: ModuleDefinition): void; __ascHubRegistered?: boolean }
 }
 
-window.__ModuleLoader__.load({
-  id: 'dsh-asc-hub',
+/*
+ * A bundle can be evaluated twice. The module system treats that as a fatal
+ * error — `client-modules: duplicate factory registration for the package id
+ * (bundle executed twice without invalidate?)` — and then the whole window
+ * fails to boot, which is a very expensive way to say "this ran again". The
+ * second execution is the same code and registering once is enough, so this
+ * guard turns the repeat into a no-op instead of killing the boot.
+ */
+;(function registerAscHub(loader: Window['__ModuleLoader__']): void {
+  if (loader.__ascHubRegistered === true) return
+  loader.__ascHubRegistered = true
+  loader.load({
+  // The module id is the package name: the boot manifest keys plugins by package
+  // and the loader imports that id. Renaming the package without this line makes
+  // the client entry fail to import ("1 entry did not activate").
+  id: '@sleep9ull/dsh-asc-hub',
   factory(require) {
     const React = require('react')
     const h: CreateElement = React.createElement
@@ -321,7 +335,7 @@ window.__ModuleLoader__.load({
       'hubVersionUnknown': ['unknown', '未知'],
       'updateRunning': ['Updating…', '更新中…'],
       'updateTitle': ['update', '更新'],
-      'error.MANUAL_UPDATE_REQUIRED': ['Update dsh-asc-hub from the Plugin Manager.', '请在 Plugin Manager 中更新 dsh-asc-hub。'],
+      'error.MANUAL_UPDATE_REQUIRED': ['Update @sleep9ull/dsh-asc-hub from the Plugin Manager.', '请在 Plugin Manager 中更新 @sleep9ull/dsh-asc-hub。'],
       'versionUnknown': ['asc unknown', 'asc 未知'],
       'modeReadOnly': ['read-only mode', '只读模式'],
       'modeWrite': ['write mode', '可写模式'],
@@ -426,7 +440,7 @@ window.__ModuleLoader__.load({
       'next.ASC_AUTH_MISSING': ['Add an API key to continue.', '添加 API 密钥后继续。'],
       'next.PROCESSING_PENDING': ['Wait until App Store Connect reports the build as VALID, then retry.', '等 App Store Connect 将构建报告为 VALID 后重试。'],
       'next.READINESS_BLOCKED': ['Resolve the blockers above, then recheck.', '处理上方阻塞项后重新检查。'],
-      'next.READ_ONLY_MODE': ['Switch the plugin mode to write in its configuration.', '在插件配置中把 mode 改为 write。'],
+      'next.READ_ONLY_MODE': ['Click the mode switch in the panel footer for this session, or set `mode: write` in the plugin configuration to keep it.', '点面板页脚的模式开关（本次会话生效），或在插件配置里把 mode 设为 write（长期生效）。'],
       'next.CONFIRM_REQUIRED': ['Tick the confirmation above and try again.', '勾选上方的确认后重试。'],
       'next.APPROVAL_DENIED': ['Nothing changed. Try again and approve the request.', '未做任何修改。重试并批准该请求。'],
       'next.VENDOR_REQUIRED': ['Enter the vendor number from the Sales and Trends URL.', '填写 Sales and Trends 链接中的 Vendor 编号。'],
@@ -2660,4 +2674,4 @@ window.__ModuleLoader__.load({
       apply,
     }
   },
-})
+})})(window.__ModuleLoader__)

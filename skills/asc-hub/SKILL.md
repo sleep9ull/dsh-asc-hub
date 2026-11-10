@@ -5,7 +5,7 @@ description: Ship an iOS app through App Store Connect with the asc_hub tool. Us
 
 # asc-hub
 
-`asc_hub` is the model adapter over the dsh-asc-hub Host dispatcher. It drives the open-source `asc`
+`asc_hub` is the model adapter over the `@sleep9ull/dsh-asc-hub` Host dispatcher. It drives the open-source `asc`
 CLI as an external engine, so the same commands work from a terminal. The plugin never stores
 credentials and never asks for an Apple ID password: sign-in is an App Store Connect API key stored
 by `asc` in the macOS Keychain.

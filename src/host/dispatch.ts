@@ -277,7 +277,7 @@ export function createHub(ctx: HostContext, rawConfig: HubConfig): Hub {
         if (scope === 'core') return engine.install('brew', options)
         throw new HubError(
           'MANUAL_UPDATE_REQUIRED',
-          'Update dsh-asc-hub from the Plugin Manager: it owns installation and versions.',
+          'Update @sleep9ull/dsh-asc-hub from the Plugin Manager: it owns installation and versions.',
         )
       },
     },

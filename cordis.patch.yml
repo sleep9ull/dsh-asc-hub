@@ -2,10 +2,10 @@
 #
 # One Host row owns the engine, the credentials handoff, the operations and the
 # agent tool. The Web Client half is declared by `dsh.client` in package.json and
-# reaches this row through a session command (see docs/CONTRACT.md).
+# reaches this row through the `/api/asc-hub` Fetch route (see docs/CONTRACT.md).
 - insert:
     - id: asc-hub
-      name: dsh-asc-hub
+      name: "@sleep9ull/dsh-asc-hub"
       config:
         ascPath: asc
         mode: read-only

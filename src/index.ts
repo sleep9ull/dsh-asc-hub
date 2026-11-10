@@ -11,7 +11,7 @@
  * The Web Client half (`client.js`) is declared by `dsh.client` in package.json
  * and registers the header status button and the right-sidebar console.
  *
- * @module dsh-asc-hub
+ * @module @sleep9ull/dsh-asc-hub
  */
 
 import { normalizeConfig } from './host/config.js'

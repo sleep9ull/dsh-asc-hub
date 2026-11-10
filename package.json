@@ -1,12 +1,16 @@
 {
-  "name": "dsh-asc-hub",
+  "name": "@sleep9ull/dsh-asc-hub",
   "version": "0.1.0",
   "description": "DeepSeek Harness plugin: an App Store Connect console that installs and inherits the asc CLI, signs in through the macOS Keychain, and ships builds to TestFlight, submits releases and reads sales.",
   "license": "MIT",
   "type": "module",
   "main": "dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
-    ".": "./dist/index.js",
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
     "./client": "./dist/client.js",
     "./cordis.patch.yml": "./cordis.patch.yml",
     "./locale/*.json": "./locale/*.json",
@@ -19,13 +23,14 @@
     "locale/*.json",
     "icon.svg",
     "skills",
-    "docs",
     "CHANGELOG.md",
     "README.md",
-    "AGENTS.md",
     "LICENSE",
     "THIRD_PARTY_NOTICES.md"
   ],
+  "publishConfig": {
+    "access": "public"
+  },
   "dsh": {
     "bundle": {
       "patch": "./cordis.patch.yml"

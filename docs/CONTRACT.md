@@ -414,7 +414,7 @@ stderr line, because silence would look like a pass. `ready` is exactly "exit 0 
 
 ```yaml
 - id: asc-hub
-  name: dsh-asc-hub
+  name: "@sleep9ull/dsh-asc-hub"
   config:
     ascPath: asc            # bare name or absolute path
     profile: null           # asc --profile
@@ -428,6 +428,13 @@ stderr line, because silence would look like a pass. `ready` is exactly "exit 0 
     defaultAppId: null
     vendorNumber: null      # sales reports; the number in the Sales and Trends URL
 ```
+
+The plugin deliberately exports no Cordis `Config`. A `Config` is a schema object built by a runtime
+schema library, and the Host half ships dependency-free (`AGENTS.md` invariant 3), so
+`src/host/config.ts` normalizes the row's `config` instead: unknown keys are ignored and a value of the
+wrong type falls back to the default above rather than failing activation. The visible consequence is
+that the Plugin Manager shows this row's config as raw YAML rather than a form, and that a persistent
+mode change is that edit — `mode.set` from the panel footer only affects the running session.
 
 The Client persists the selected app id in `localStorage` under
 `dsh.asc-hub.v1.app` and the vendor number under `dsh.asc-hub.v1.vendor`.

@@ -38,7 +38,7 @@ implements every operation once; the Web Client and the `asc_hub` tool are adapt
 | `dist/` | Build output (`npm run build`): `dist/index.js`, `dist/host/*.js` + `.d.ts`, `dist/client.js`. Git-ignored; shipped in the npm tarball. |
 | `tsconfig.json` / `tsconfig.client.json` / `tsconfig.test.json` | Host (ESM, strict, declarations), client (script, DOM libs, `module: none`), tests (compiled into `dist-test/`). |
 | `locale/*.json` | Plugin display metadata (`meta.title`, `meta.description`) for the Plugin Manager; the panel's `en`/`zh` dictionaries live inline in `src/client.ts`. |
-| `cordis.patch.yml` | Bundle patch inserting the `asc-hub` row (`name: dsh-asc-hub`). |
+| `cordis.patch.yml` | Bundle patch inserting the `asc-hub` row (`name: @sleep9ull/dsh-asc-hub`). |
 | `docs/` | CONTRACT (authoritative), ARCHITECTURE, OPERATIONS, ONBOARDING, UPSTREAM-ASC, RELEASING, WORKFLOW, research. |
 | `skills/asc-hub/SKILL.md` | The compact model-facing skill for the `asc_hub` tool, registered at runtime by `src/host/skill.ts` (it is not discovered from disk). |
 | `test/*.test.ts` | Host tests, compiled into `dist-test/` and run against `dist/`. `client/__smoke__.mts` is the client harness: it loads `dist/client.js` the way the loader does and audits the module. |
@@ -166,8 +166,45 @@ Use the `plugin_manager` tool; do not reproduce installation with shell commands
 - **Version has no JSON output.** `asc version` prints `6.5.3 (commit: …, date: …)`; parse the
   numeric part only, accept an optional leading `v`.
 - **`--limit 0` means "the command's default"**, not "no rows".
-- **Do not export a Cordis `Config`** for this row and do not persist config yourself: the row's
-  `config` is normalized by `src/host/config.ts`; the patch layer survives plugin upgrades.
+- **The client bundle must survive being evaluated twice.** The module system fails the whole window
+  with `client-modules: duplicate factory registration for "@sleep9ull/dsh-asc-hub" (bundle executed twice
+  without invalidate?)` when the same registration arrives twice, so `src/client.ts` registers behind
+  an idempotence flag (`__ascHubRegistered`) inside an IIFE — no top-level `const`, which a second
+  evaluation could not redeclare. The harness's own smoke runs the bundle twice and asserts one
+  registration; do not "simplify" that guard away.
+- **A bundle can be installed and still not load.** `plugin_manager` → `list_bundles` reports
+  `installed: true, enabled: false` when the package is in the profile's `node_modules` but not in
+  `dsh.profile.bundles`; the row never mounts, no tool/route/skill appears, and a restart does not
+  fix it because the state is on disk. `set_bundle` with `enabled: true` re-inserts it. Removing and
+  reinstalling a bundle can leave that state behind, especially when an install was rejected half way.
+- **The plugin manager rewrites the profile's `cordis.patch.yml`.** A user override such as
+  `- id: asc-hub\n  config:\n    mode: write` can disappear when a bundle is installed or removed;
+  the manager keeps a `cordis.patch.yml.bak-<ts>` beside it. After any install, re-read
+  `status.mode` (or the patch layer) instead of assuming the configuration survived.
+- **Two install paths to the same checkout break the client.** A stale
+  `node_modules/dsh-asc-hub` next to the scoped `node_modules/@sleep9ull/dsh-asc-hub` means the client
+  bundle is evaluated twice, and `client.js` registers a fixed module id, so boot dies with
+  `client-modules: duplicate factory registration for "@sleep9ull/dsh-asc-hub"` and the window reports
+  `1 entry did not activate … import failed`. The Host half still answers, which makes it look like a
+  client-only bug. Renaming a package leaves the old symlink behind: remove it (`rm` the stale link, or
+  let `pnpm install` prune it) and never keep two links to one checkout in one profile.
+- **A scoped package name must be quoted in `cordis.patch.yml`.** `@` starts a YAML reserved
+  indicator, so `name: @scope/pkg` is a parse error (`bad indentation of a mapping entry`) and the
+  install is rejected; write `name: "@scope/pkg"`.
+- **npm renders the tarball's `README.md`, and it does not resolve relative paths.** A relative
+  `icon.svg`, `README.en.md` or `docs/CONTRACT.md` looks right on GitHub and is a 404 on npmjs.com, so
+  every link and image in the four READMEs and in `CHANGELOG.md` is a full `github.com/sleep9ull/…/blob/main/`
+  or `raw.githubusercontent.com/…` URL. npm auto-includes every root `README*`, so the translations do
+  travel in the tarball, but the package page still renders `README.md` alone.
+- **A scoped package publishes as restricted unless `publishConfig.access` is `public`.** Without the
+  field npm tries to create a paid private package and the first `npm publish` fails, so `package.json`
+  carries `"publishConfig": { "access": "public" }`.
+- **Do not export a Cordis `Config`** for this row and do not persist config yourself. A `Config` is
+  a schema object built by a runtime schema library, and the Host half ships dependency-free
+  (invariant 3), so the row's `config` is normalized by `src/host/config.ts`; the patch layer survives
+  plugin upgrades. The trade-off is visible: the Plugin Manager shows this row's config as raw YAML,
+  and the footer's mode switch (`mode.set`) is session-scoped on purpose — persisting it would mean
+  editing a config a profile override may already own.
 - **Sign-in is panel-only.** Never route `auth.login`, `auth.importKey`, `auth.logout` or
   `auth.switch` through the model; `clientOnly` turns an attempt into `CLIENT_ONLY`, and the panel is
   the only credential handoff by design.
@@ -178,9 +215,9 @@ Use the `plugin_manager` tool; do not reproduce installation with shell commands
 
 `package.json` `version` is the single source; DSH reads npm for updates and never reads GitHub
 Releases, so **`npm publish` is the release** and a git/tarball/link install is not updatable in
-place. Keep the CHANGELOG heading, `git tag v<version>` and the published version identical, and
-re-verify `engines.dsh` on every DSH minor — it gates mounting, and `semver.satisfies` here runs with
-`includePrerelease`. Full checklist and the per-install-kind upgrade matrix: [docs/RELEASING.md](docs/RELEASING.md).
+place. Keep the CHANGELOG heading, `git tag v<version>` and the published version identical (`git tag
+-f` when the tag predates the tree being published), and re-verify `engines.dsh` on every DSH minor —
+it gates mounting, and `semver.satisfies` here runs with `includePrerelease`. Full checklist and the per-install-kind upgrade matrix: [docs/RELEASING.md](docs/RELEASING.md).
 The day-to-day loop (when to commit, when to bump, release day, the 72 hours after, incidents) is
 [docs/WORKFLOW.md](docs/WORKFLOW.md).
 

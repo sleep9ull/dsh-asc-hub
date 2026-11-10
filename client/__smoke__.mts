@@ -29,6 +29,7 @@ function repoRoot(start: string): string {
 
 const file = join(repoRoot(here), 'dist', 'client.js')
 const source = readFileSync(file, 'utf8')
+const manifest = JSON.parse(readFileSync(join(repoRoot(here), 'package.json'), 'utf8')) as { name: string }
 
 let passed = 0
 const failures: string[] = []
@@ -92,8 +93,16 @@ check('onboarding progress uses the one accent, not the success token', !onboard
 check('the accent is aliased, never repeated', source.includes('--asc-hub-accent: #0071e3') && source.includes('--dsw-alias-brand-primary: var(--asc-hub-accent)'))
 const fixedWidths = [...source.matchAll(/(?:^|[;{\s])width:\s*([1-9][0-9]{2,})px/g)].map(match => match[0].trim())
 check('no fixed pixel panel width', fixedWidths.length === 0, fixedWidths.join(','))
-check('banner id matches package name', source.includes("id: 'dsh-asc-hub'"))
-check('banner uses __ModuleLoader__.load', source.includes('window.__ModuleLoader__.load({'))
+// The registration id has to equal the package name, or the boot manifest's import
+// finds no factory. Read the name from the manifest so a rename cannot rot this.
+check('banner id matches package name', source.includes(`id: '${manifest.name}'`), source.match(/id: '[^']+'/)?.[0])
+// The bundle registers through the loader once; a second evaluation is a no-op
+// (the module system treats a repeat registration as fatal), so the assertion
+// accepts the guarded form as well as the bare call.
+check('bundle registers through the loader once, behind an idempotence guard',
+  /window\.__ModuleLoader__/.test(source)
+  && (source.match(/\.load\(\{/g) || []).length === 1
+  && /\.__ascHubRegistered\s*===?\s*true/.test(source))
 
 /* --------------------------------------------------------------------- *
  * Loader harness
@@ -140,8 +149,15 @@ vm.createContext(sandbox)
 vm.runInContext(source, sandbox, { filename: 'client.js' })
 
 check('module loader called once', loaded.length === 1, loaded.length)
+
+// The module system treats a second registration of the same id as fatal
+// ("bundle executed twice without invalidate?"), and that failure takes the
+// whole window down. Re-evaluating the bundle has to be a no-op instead.
+vm.runInContext(source, sandbox, { filename: 'client.js' })
+check('a second evaluation of the bundle registers nothing', loaded.length === 1, loaded.length)
+
 const entry = loaded[0]
-check('module id equals package name', entry && entry.id === 'dsh-asc-hub', entry && entry.id)
+check('module id equals package name', entry !== undefined && entry.id === manifest.name, entry && entry.id + ' vs ' + manifest.name)
 check('factory is a function', !!entry && typeof entry.factory === 'function')
 
 const plugin = entry.factory(sandbox.require)

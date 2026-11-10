@@ -93,7 +93,7 @@ export function registerSkill(ctx: HostContext): boolean {
 
   try {
     const registry = skills
-    ctx.effect(() => registry.register({ ...definition, source: 'dsh-asc-hub' }), 'asc-hub: model skill')
+    ctx.effect(() => registry.register({ ...definition, source: '@sleep9ull/dsh-asc-hub' }), 'asc-hub: model skill')
     return true
   } catch (error) {
     ctx.logger?.warn?.(`asc-hub: skill registration refused (${error instanceof Error ? error.message : String(error)})`)

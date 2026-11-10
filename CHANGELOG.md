@@ -273,4 +273,4 @@ and read sales — with the same operations behind the `asc_hub` tool and the sa
 - One account/profile at a time; multi-team `asc --profile` switching is roadmapped.
 
 [Unreleased]: https://github.com/sleep9ull/dsh-asc-hub/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/sleep9ull/dsh-asc-hub/releases/tag/v0.1.0
+[0.1.0]: https://www.npmjs.com/package/@sleep9ull/dsh-asc-hub/v/0.1.0

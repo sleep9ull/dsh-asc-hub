@@ -67,7 +67,7 @@ iOS 앱 하나를 내보내는 시간은 대부분 코드를 쓰는 데 쓰이�
 버전을 고정하려면 `@sleep9ull/dsh-asc-hub@0.1.0`처럼 씁니다. 이후 업데이트는
 **Plugins → Installed → Versions(플러그인 → 설치됨 → 버전)**이 담당합니다.
 
-그다음 `asc-hub` 행을 켜고(플러그인 관리자에서 제목은 **App Store Connect hub(App Store Connect 콘솔)**), 오른쪽 사이드바에서
+그다음 `asc-hub` 행을 켜고(플러그인 관리자에서 제목은 **App Store Connect Hub(App Store Connect 콘솔)**), 오른쪽 사이드바에서
 **ASC Hub(ASC 콘솔)** 탭을 엽니다.
 
 > 데스크톱 앱의 profile은 앱이 직접 관리합니다. 셸에서 `profiles/<name>`에 설치하면 성공으로 보이지만

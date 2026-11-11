@@ -68,7 +68,7 @@ iOS アプリを世に出す時間の大半は、コードを書くことでは�
 バージョンを固定するなら `@sleep9ull/dsh-asc-hub@0.1.0` と書きます。以後の更新は
 **Plugins → Installed → Versions（プラグイン → インストール済み → バージョン）**が担当します。
 
-次に `asc-hub` の行を有効にし（プラグインマネージャでの表示名は **App Store Connect hub（App Store Connect コンソール）**）、
+次に `asc-hub` の行を有効にし（プラグインマネージャでの表示名は **App Store Connect Hub（App Store Connect コンソール）**）、
 右サイドバーで **ASC Hub（ASC コンソール）** タブを開きます。
 
 > デスクトップアプリの profile はアプリ自身が管理します。シェルから `profiles/<name>` にインストール

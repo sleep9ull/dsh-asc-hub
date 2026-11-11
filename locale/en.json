@@ -1,6 +1,6 @@
 {
   "meta": {
-    "title": "App Store Connect hub",
+    "title": "App Store Connect Hub",
     "description": "Installs and inherits the asc CLI, signs in through the macOS Keychain, then ships builds to TestFlight, submits releases and reads sales from a side panel."
   }
 }

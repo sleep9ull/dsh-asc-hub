@@ -70,7 +70,7 @@ Open **Plugins → Add plugin**, paste the spec and confirm:
 Pin a version with `@sleep9ull/dsh-asc-hub@0.1.0`. From then on **Plugins → Installed → Versions**
 owns updates.
 
-Then enable the `asc-hub` row (it is titled **App Store Connect hub** in the Plugin Manager) and open
+Then enable the `asc-hub` row (it is titled **App Store Connect Hub** in the Plugin Manager) and open
 the **ASC Hub** tab in the right sidebar.
 
 > The Desktop app's own profile is managed by the app. Installing into `profiles/<name>` from a shell

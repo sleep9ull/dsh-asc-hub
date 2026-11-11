@@ -49,7 +49,7 @@ Organizer、一个浏览器标签和终端之间，而且往往就在 agent 写�
 两扇门、一个 dispatcher：面板和 `asc_hub` 模型工具调用同一套 Host 操作，因此共享分类、门禁与
 脱敏。
 
-> **版本 0.1.0** —— 已在 DeepSeek Harness 0.2.2-rc.1 与 `asc` 6.5.3 上验证。
+> **版本 0.1.1** —— 已在 DeepSeek Harness 0.2.2-rc.1 与 `asc` 6.5.3 上验证。
 
 ## 安装
 
@@ -63,7 +63,7 @@ Organizer、一个浏览器标签和终端之间，而且往往就在 agent 写�
 @sleep9ull/dsh-asc-hub
 ```
 
-需要固定版本就写 `@sleep9ull/dsh-asc-hub@0.1.0`。之后 **Plugins → Installed → Versions（插件 → 已安装 → 版本）** 负责升级。
+需要固定版本就写 `@sleep9ull/dsh-asc-hub@0.1.1`。之后 **Plugins → Installed → Versions（插件 → 已安装 → 版本）** 负责升级。
 
 然后启用 `asc-hub` 这一行（插件管理器里标题是 **App Store Connect Hub（App Store Connect 控制台）**），在右侧栏打开
 **ASC Hub（ASC 控制台）** 标签页。

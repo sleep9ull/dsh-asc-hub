@@ -15,6 +15,12 @@ All notable changes to `dsh-asc-hub` are recorded here. The format follows
   Store icon rather than as this product's own. Original artwork, not Apple's asset; the panel's
   `--asc-hub-accent` is unchanged and the READMEs keep pointing at the same absolute URL.
 
+- **The READMEs credit their engine.** All four now carry two centred lines directly under the
+  badges — `Engine: asc`, linked to <https://github.com/rorkai/App-Store-Connect-CLI> and naming
+  Rudrank Riyam, then "installed and run as an external program, never bundled, vendored or forked".
+  The overview already said it in prose and `THIRD_PARTY_NOTICES.md` carries the MIT notice, but the
+  upstream project was only visible after scrolling; now it sits in the hero.
+
 - **README badges became links, and three of them became data.** In all four READMEs every badge is
   now an anchor to the thing it asserts: `dsh` opens the *Requirements* section of that language's own
   file, Node opens nodejs.org, `TypeScript strict` opens `tsconfig.json` (the file that carries

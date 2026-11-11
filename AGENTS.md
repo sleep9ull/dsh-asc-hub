@@ -73,9 +73,9 @@ These do not regress. Each has a cheap test; run the test before claiming the ch
    `--asc-hub-accent: #0071e3` (App Store Connect blue), declared once on `[data-asc-hub]` and aliased
    onto `--dsw-alias-brand-primary` inside this subtree only, so the host UI is never repainted and no
    rule repeats the literal. *Test:* the client smoke fails unless there is exactly one literal, it is
-   `#0071e3`, and it is aliased. Artwork keeps its own colors in `icon.svg`, which is an original
-   reinterpretation of the App Store Connect visual language (blue field, inset rounded frame, the
-   three-stroke A) rather than Apple's icon asset: do not trace, embed or download the real one.
+   `#0071e3`, and it is aliased. Artwork keeps its own colors in `icon.svg` — a black tile and a
+   yellow `A` with a flat top, rounded shoulders and rounded feet — and is original artwork, not
+   Apple's icon asset: do not trace, embed or download the real one.
 6. **Key material never persists, logs or echoes.** The plugin hands key ids/paths to `asc`; `asc`
    and the macOS Keychain own storage. Every outbound string passes `src/host/redact.ts`; ids are
    shortened to their last four characters (`keyIdTail`).

@@ -1,16 +1,9 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="asc-hub">
-  <!-- Original artwork: the App Store Connect visual language (blue field, inset
-       rounded frame, the three-stroke A) re-drawn flat — inverted colours, one
-       gradient, squircle silhouette. Not Apple's asset, not Apple's trademark. -->
-  <defs>
-    <linearGradient id="asc-hub-field" x1="10" y1="6" x2="54" y2="58" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#0E95FF"/>
-      <stop offset=".55" stop-color="#0071E3"/>
-      <stop offset="1" stop-color="#0046A6"/>
-    </linearGradient>
-  </defs>
-  <path d="M64 32L64 42.7L63.9 46.2L63.8 48.6L63.6 50.6L63.3 52.3L63 53.8L62.6 55.1L62.2 56.3L61.7 57.3L61.2 58.2L60.5 59.1L59.9 59.9L59.1 60.5L58.2 61.2L57.3 61.7L56.3 62.2L55.1 62.6L53.8 63L52.3 63.3L50.6 63.6L48.6 63.8L46.2 63.9L42.7 64L32 64L21.3 64L17.8 63.9L15.4 63.8L13.4 63.6L11.7 63.3L10.2 63L8.9 62.6L7.7 62.2L6.7 61.7L5.8 61.2L4.9 60.5L4.1 59.9L3.5 59.1L2.8 58.2L2.3 57.3L1.8 56.3L1.4 55.1L1 53.8L0.7 52.3L0.4 50.6L0.2 48.6L0.1 46.2L0 42.7L0 32L0 21.3L0.1 17.8L0.2 15.4L0.4 13.4L0.7 11.7L1 10.2L1.4 8.9L1.8 7.7L2.3 6.7L2.8 5.8L3.5 4.9L4.1 4.1L4.9 3.5L5.8 2.8L6.7 2.3L7.7 1.8L8.9 1.4L10.2 1L11.7 0.7L13.4 0.4L15.4 0.2L17.8 0.1L21.3 0L32 0L42.7 0L46.2 0.1L48.6 0.2L50.6 0.4L52.3 0.7L53.8 1L55.1 1.4L56.3 1.8L57.3 2.3L58.2 2.8L59.1 3.5L59.9 4.1L60.5 4.9L61.2 5.8L61.7 6.7L62.2 7.7L62.6 8.9L63 10.2L63.3 11.7L63.6 13.4L63.8 15.4L63.9 17.8L64 21.3Z" fill="url(#asc-hub-field)"/>
-  <rect x="9.4" y="9.4" width="45.2" height="45.2" rx="8.1" fill="none" stroke="#FFFFFF" stroke-width="3.6"/>
-  <path d="M19.72 47.01 37.01 16.98M44.29 47.01 27 16.98" fill="none" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round"/>
-  <path d="M25.4 38.8H38.6" fill="none" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round"/>
+  <!-- Original artwork, not Apple's asset: a single yellow A on a black tile. A narrow
+       flat head, a narrow waist and a wide base — a trapezoid — with rounded shoulders,
+       rounded feet and a bar across the legs. Every pair of edges is mirrored about
+       x=32: base 16.5..47.5, head 27.5..36.5, legs with equal 11 x 27.6 slopes. -->
+  <rect x="4" y="4" width="56" height="56" rx="14" fill="#000000"/>
+  <path d="M16.5 45.8 27.5 18.2H36.5L47.5 45.8" fill="none" stroke="#FFD60A" stroke-width="7.2" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="20" y="33.2" width="24" height="7.2" fill="#FFD60A"/>
 </svg>

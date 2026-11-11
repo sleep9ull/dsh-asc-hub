@@ -8,12 +8,12 @@ All notable changes to `dsh-asc-hub` are recorded here. The format follows
 
 ### Changed
 
-- **A new icon.** `icon.svg` is now a flat re-drawing of the App Store Connect visual language — the
-  blue field, the inset rounded frame and the three-stroke A — inverted to white-on-blue on a squircle,
-  with one gradient that runs through the product accent (`#0071E3`). It is original artwork and not
-  Apple's asset; the panel's `--asc-hub-accent` is unchanged, and the READMEs keep pointing at the same
-  absolute URL. The old mark was a dark navy tile with a mint chevron, which read as an upload button
-  rather than as the App Store.
+- **A new icon.** `icon.svg` is now a black squircle holding a single yellow `A`: a flat head, a
+  narrow waist and a wide base — a trapezoid — carried by strokes with round terminals, so the
+  shoulders and the feet turn on arcs and the bar across the legs sits flush. It replaces the
+  blue-field / white-frame re-drawing this release briefly carried, which read as a copy of the App
+  Store icon rather than as this product's own. Original artwork, not Apple's asset; the panel's
+  `--asc-hub-accent` is unchanged and the READMEs keep pointing at the same absolute URL.
 
 - **README badges became links, and three of them became data.** In all four READMEs every badge is
   now an anchor to the thing it asserts: `dsh` opens the *Requirements* section of that language's own

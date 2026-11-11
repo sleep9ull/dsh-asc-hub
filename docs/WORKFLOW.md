@@ -93,8 +93,9 @@ things that silently break.
 7. **Publish.** `npm publish`. `prepublishOnly` re-runs `check` + tests, so a broken tree cannot ship.
    This step is irreversible — treat it as the one human decision in the routine.
 8. **Push and tag.** `git push origin main`, then `git tag -a vX.Y.Z -m "X.Y.Z — <one line>"` on
-   that commit and `git push origin vX.Y.Z`. `git rev-parse vX.Y.Z^{commit}` must equal the
-   packument's `gitHead`; a tag that points elsewhere is worse than none.
+   that commit and `git push origin vX.Y.Z`. `git rev-parse vX.Y.Z^{tree}` must equal
+   `git rev-parse <gitHead>^{tree}` — compare trees, not commits, because a squash merge keeps the
+   tree and changes the hash.
 9. **Announce.** No GitHub Release to create: the tag, the CHANGELOG entry and the npm version page
    are the record. Say so explicitly when the `engines.dsh` floor moved.
 10. **Dogfood the user path.** Switch the profile to the registry copy, restart, and confirm you are

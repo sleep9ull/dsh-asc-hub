@@ -9,7 +9,8 @@ All notable changes to `dsh-asc-hub` are recorded here. The format follows
 ### Changed
 
 - **Releases carry a tag again.** Each version is tagged `v<version>` (annotated) on the commit
-  `npm publish` ships, verified against the packument's `gitHead`; no GitHub Release is created.
+  `npm publish` ships, verified against the packument's `gitHead` by tree, so a squash merge cannot
+  break the check; no GitHub Release is created.
   `AGENTS.md`, `docs/RELEASING.md` and `docs/WORKFLOW.md` state the rule, and `[Unreleased]` compares
   from `v0.1.1` again.
 

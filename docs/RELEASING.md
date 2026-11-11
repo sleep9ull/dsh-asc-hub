@@ -63,11 +63,14 @@ So:
 
 - **npm publish is the release.** It is what makes `Update` appear.
 - **There is a tag, and no GitHub Release.** Every version is tagged `v<version>` (annotated) on the
-  commit `npm publish` shipped, so the tag and the packument's `gitHead`
-  (`npm view @sleep9ull/dsh-asc-hub@0.1.1 gitHead`) name the same commit and can be checked against
-  each other. The tag is created with the publish, never after it: `v0.1.0` once pointed three
-  commits past the code npm received, which is the failure this rule exists to prevent. A GitHub
-  Release is still not used — it would keep a second copy of notes the CHANGELOG owns.
+  tree `npm publish` shipped, so the tag and the packument's `gitHead`
+  (`npm view @sleep9ull/dsh-asc-hub@0.1.1 gitHead`) mark the same tree and can be checked against each
+  other: `git rev-parse v<version>^{tree}` must equal `git rev-parse <gitHead>^{tree}`. Compare trees,
+  not commits — a squash merge keeps the tree and changes the hash, and 0.1.1 was published from a
+  branch commit before its squash, so its `gitHead` (`49b706d`) and its tag (`33e80d9`) are different
+  commits over one tree. The tag is created with the publish, never after it: `v0.1.0` once pointed
+  three commits past the code npm received, which is the failure this rule exists to prevent. A
+  GitHub Release is still not used — it would keep a second copy of notes the CHANGELOG owns.
 - A git spec (`github:sleep9ull/dsh-asc-hub#<commit>`) still installs, pinned to a commit, but that
   profile can never be upgraded in place — only uninstall + reinstall.
 
@@ -110,7 +113,7 @@ Rules that never bend:
    full URLs or they are 404s on the package page.
 7. `git push origin main`, then tag the published commit and push the tag:
    `git tag -a vx.y.z -m "x.y.z — <one line>"` and `git push origin vx.y.z`.
-   `git rev-parse vx.y.z^{commit}` must equal the packument's `gitHead`.
+   `git rev-parse vx.y.z^{tree}` must equal `git rev-parse <gitHead>^{tree}`.
 8. Re-verify the published copy the way a user gets it — remove the `link:` dependency and install
    the registry version (see below), then confirm the footer reports `x.y.z` after a restart.
 9. **T+1 day:** ask `plugin_market` for `@sleep9ull/dsh-asc-hub`. Found → the catalog picked it up; absent →

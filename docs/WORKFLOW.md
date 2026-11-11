@@ -83,7 +83,7 @@ things that silently break.
    - `engines.dsh` still matches what you actually tested (the Desktop runtime reports its version; a
      DSH minor needs a fresh pass and a widened range) — see RELEASING.
    - `docs/CONTRACT.md` matches the code. If they disagree, the contract wins and the code is the bug.
-   - README's install line and the row title still read correctly (**App Store Connect hub**).
+   - README's install line and the row title still read correctly (**App Store Connect Hub**).
 3. **Bump.** `package.json` `version`.
 4. **CHANGELOG.** `[Unreleased]` → `## [x.y.z] — <date>`, fresh `[Unreleased]`, link reference at the
    bottom.

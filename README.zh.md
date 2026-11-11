@@ -65,7 +65,7 @@ Organizer、一个浏览器标签和终端之间，而且往往就在 agent 写�
 
 需要固定版本就写 `@sleep9ull/dsh-asc-hub@0.1.0`。之后 **Plugins → Installed → Versions（插件 → 已安装 → 版本）** 负责升级。
 
-然后启用 `asc-hub` 这一行（插件管理器里标题是 **App Store Connect hub（App Store Connect 控制台）**），在右侧栏打开
+然后启用 `asc-hub` 这一行（插件管理器里标题是 **App Store Connect Hub（App Store Connect 控制台）**），在右侧栏打开
 **ASC Hub（ASC 控制台）** 标签页。
 
 > 桌面版的 profile 由 app 自己管理。在 shell 里往 `profiles/<name>` 安装可能报告成功，却不会出现

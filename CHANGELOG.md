@@ -8,6 +8,10 @@ All notable changes to `dsh-asc-hub` are recorded here. The format follows
 
 ### Changed
 
+- **The row title is capitalised.** `locale/en.json` now reads **App Store Connect Hub**, and the four
+  READMEs plus the `docs/WORKFLOW.md` checklist quote it that way. The Chinese title
+  (`App Store Connect 控制台`) is unchanged; it is a translation, not a casing variant.
+
 - **A new icon.** `icon.svg` is now a black squircle holding a single yellow `A`: a flat head, a
   narrow waist and a wide base — a trapezoid — carried by strokes with round terminals, so the
   shoulders and the feet turn on arcs and the bar across the legs sits flush. It replaces the

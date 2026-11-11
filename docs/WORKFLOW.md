@@ -1,8 +1,8 @@
 # The dev-to-release routine
 
-The loop in one line: **iterate in a worktree, prove it on the live surfaces, open a PR and
-squash-merge it; when the batch is worth someone else's restart, cut a release PR, merge it, publish
-from `main`, tag the published commit, then check discovery.**
+The loop in one line: **iterate in the primary checkout on `main` — the tree the panel renders —
+prove it on the live surfaces, commit; when the batch is worth someone else's restart, cut the one PR
+of the cycle, merge it, publish from `main`, tag the published commit, then check discovery.**
 
 This page is the routine; [docs/RELEASING.md](RELEASING.md) is the mechanism (what a version is, what
 DSH reads, what each install kind can and cannot do). When they disagree, RELEASING is right.
@@ -33,16 +33,17 @@ profiles (`web`, `tui`, your own), not for the app you are testing in.
 
 ## 1. Daily loop
 
-Work in a `git worktree` off `main`, with the `desktop` profile for the live check:
+Work in the primary checkout, on `main`. The profile's `link:` points at that directory, so whatever
+is checked out there is what the panel renders: no repointing, and no worktree to keep in sync. Commit
+straight to `main` — a branch is only worth it for a change you want reviewed, and the release is the
+one PR of the cycle.
 
 ```
-git worktree add ../dsh-asc-hub-<topic> -b <type>/<topic> main
+npm run build   → refresh the page        (client half)
+                → restart the Harness     (Host half, icon, locale, version)
 ```
 
-The profile's `link:` points at the primary checkout, so the panel renders *that* tree: to see a
-worktree change live, either repoint the link at the worktree for the session or merge first and pull
-the primary checkout. Either way the primary checkout's `main` stays clean, which is where the release
-step publishes from. A cycle is: change → check → live check → commit → push → PR.
+A cycle is: change → check → live check → commit → push.
 
 1. **Change one thing.** Client work is `src/client.ts` (plus the `en`/`zh` dictionaries inline
    there); Host work is `src/index.ts` + `src/host/**`.
@@ -93,7 +94,7 @@ things that silently break.
      DSH minor needs a fresh pass and a widened range) — see RELEASING.
    - `docs/CONTRACT.md` matches the code. If they disagree, the contract wins and the code is the bug.
    - README's install line and the row title still read correctly (**App Store Connect Hub**).
-3. **Branch.** From an up-to-date `main`, cut `release/X.Y.Z`; a worktree is fine here too. The edits
+3. **Branch.** From an up-to-date `main`, cut `release/X.Y.Z` — the one PR of the cycle. The edits
    below land on that branch, not on `main`.
 4. **Bump.** `npm version X.Y.Z --no-git-tag-version`.
 5. **CHANGELOG.** `[Unreleased]` → `## [X.Y.Z] — <date>`, fresh `[Unreleased]`, link reference at the
@@ -103,8 +104,7 @@ things that silently break.
    `git push -u origin release/X.Y.Z`, `gh pr create`, then
    `gh pr merge <N> --squash --delete-branch --subject "release: @sleep9ull/dsh-asc-hub X.Y.Z"`.
    The merge writes a **new** commit hash on `main`; that commit is the release.
-8. **Pull it.** In the checkout you publish from — normally the primary one, not the worktree —
-   `git checkout main && git pull --ff-only`. Confirm `git log -1` is the release commit and
+8. **Pull it.** In the primary checkout: `git checkout main && git pull --ff-only`. Confirm `git log -1` is the release commit and
    `git status --short` is empty. Never publish from the release branch: `gitHead` would record the
    pre-squash commit and no tag on `main` could match it.
 9. **Publish.** `npm publish`. `prepublishOnly` re-runs `check` + tests, so a broken tree cannot ship.

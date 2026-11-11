@@ -97,12 +97,12 @@ Rules that never bend:
 
 ## Release checklist
 
-The release is a pull request, and the publish happens from `main` after it merges.
+The release is the one pull request of the cycle — ordinary changes commit straight to `main` —
+and the publish happens from `main` after it merges.
 
 1. **Green.** `npm run check` clean; `npm test` (Host) and
    `node --experimental-strip-types client/__smoke__.mts` (Client) green.
-2. **Branch.** Cut `release/x.y.z` from an up-to-date `main`. A `git worktree` is fine for the edit;
-   step 7 says where the publish has to run.
+2. **Branch.** Cut `release/x.y.z` from an up-to-date `main` — the one PR of the cycle.
 3. **Bump.** `npm version x.y.z --no-git-tag-version` — it edits `package.json` and
    `package-lock.json` and creates no tag.
 4. **CHANGELOG.** Move `[Unreleased]` to `## [x.y.z] — <date>`, leave a fresh `[Unreleased]`, add
@@ -113,10 +113,9 @@ The release is a pull request, and the publish happens from `main` after it merg
 6. **Commit, PR, squash-merge.** `git commit -m "release: @sleep9ull/dsh-asc-hub x.y.z"`, push the
    branch, open the PR, then `gh pr merge <N> --squash --delete-branch`. The merge writes a **new**
    commit on `main`; that commit is the release and its hash is what npm will record.
-7. **Pull it.** In the checkout you publish from — normally the primary one, not the worktree —
-   `git checkout main && git pull --ff-only`. Confirm `git log -1` is the release commit and
-   `git status --short` is empty. Publishing from the release branch records the pre-squash commit as
-   `gitHead`, and no tag on `main` can then match it by hash.
+7. **Pull it.** In the primary checkout: `git checkout main && git pull --ff-only`. Confirm
+   `git log -1` is the release commit and `git status --short` is empty. Publishing from the release
+   branch records the pre-squash commit as `gitHead`, and no tag on `main` can then match it by hash.
 8. **Publish.** `npm publish` — `prepublishOnly` re-runs `check` + tests, and refuses to publish a
    broken tree. `npm pack --dry-run` first if the `files` list changed (~122 kB packed, 46 files
    today). The README the registry renders is the tarball's `README.md` — English, since the

@@ -8,6 +8,12 @@ All notable changes to `dsh-asc-hub` are recorded here. The format follows
 
 ### Changed
 
+- **The release checklist follows the PR flow.** `docs/RELEASING.md` and `docs/WORKFLOW.md` now cut a
+  `release/x.y.z` branch (a `git worktree` is fine), merge it as a pull request, pull `main`, publish
+  from that commit, then tag it — instead of committing straight to `main` and publishing before the
+  push. The squash merge rewrites the hash, so publishing before the merge is called out as the
+  anti-pattern it is.
+
 - **Releases carry a tag again.** Each version is tagged `v<version>` (annotated) on the commit
   `npm publish` ships, verified against the packument's `gitHead` by tree, so a squash merge cannot
   break the check; no GitHub Release is created.

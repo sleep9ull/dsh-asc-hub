@@ -1,7 +1,8 @@
 # The dev-to-release routine
 
-The loop in one line: **iterate in a linked checkout, prove it on the live surfaces, commit; when the
-batch is worth someone else's restart, bump once, tag, publish, then check discovery.**
+The loop in one line: **iterate in a worktree, prove it on the live surfaces, open a PR and
+squash-merge it; when the batch is worth someone else's restart, cut a release PR, merge it, publish
+from `main`, tag the published commit, then check discovery.**
 
 This page is the routine; [docs/RELEASING.md](RELEASING.md) is the mechanism (what a version is, what
 DSH reads, what each install kind can and cannot do). When they disagree, RELEASING is right.
@@ -10,7 +11,7 @@ DSH reads, what each install kind can and cannot do). When they disagree, RELEAS
 
 Edit `src/**`, run `npm run build`, then refresh the panel; the Host half additionally needs the
 row reinstalled so its module generation reloads. `npm run verify` is the gate: `tsc --noEmit` on
-all four projects, the 61 host tests against `dist/`, and the 247-check client smoke harness.
+all four projects, the 61 host tests against `dist/`, and the 248-check client smoke harness.
 
 ## 0. Two copies, one rule
 
@@ -32,13 +33,21 @@ profiles (`web`, `tui`, your own), not for the app you are testing in.
 
 ## 1. Daily loop
 
-Work in the linked copy on the `desktop` profile. A cycle is: change → check → live check → commit.
+Work in a `git worktree` off `main`, with the `desktop` profile for the live check:
 
-1. **Change one thing.** Client work is `client.js` (plus the `en`/`zh` dictionaries inline there);
-   Host work is `index.js` + `host/**`.
-2. **Static checks.** `node --check` every touched `.js`, then `npm test` (41 host tests) and
-   `node --experimental-strip-types client/__smoke__.mts` (248 client checks). `npm run check`
-   covers the two entry files.
+```
+git worktree add ../dsh-asc-hub-<topic> -b <type>/<topic> main
+```
+
+The profile's `link:` points at the primary checkout, so the panel renders *that* tree: to see a
+worktree change live, either repoint the link at the worktree for the session or merge first and pull
+the primary checkout. Either way the primary checkout's `main` stays clean, which is where the release
+step publishes from. A cycle is: change → check → live check → commit → push → PR.
+
+1. **Change one thing.** Client work is `src/client.ts` (plus the `en`/`zh` dictionaries inline
+   there); Host work is `src/index.ts` + `src/host/**`.
+2. **Static checks.** `npm run check` (four `tsc --noEmit` projects), then `npm test` (61 host tests
+   against `dist/`) and `npm run smoke` (248 client checks).
 3. **Live check — the step that gets skipped.**
    - Client: refresh the page. The trigger and panel must render with no `slot entry crashed in
      '<slot>'` in the console.
@@ -84,21 +93,29 @@ things that silently break.
      DSH minor needs a fresh pass and a widened range) — see RELEASING.
    - `docs/CONTRACT.md` matches the code. If they disagree, the contract wins and the code is the bug.
    - README's install line and the row title still read correctly (**App Store Connect Hub**).
-3. **Bump.** `package.json` `version`.
-4. **CHANGELOG.** `[Unreleased]` → `## [x.y.z] — <date>`, fresh `[Unreleased]`, link reference at the
-   bottom.
-5. **Pack check** (only when `files`/`exports` changed): `npm pack --dry-run`.
-6. **Commit.** `git commit -m "release: @sleep9ull/dsh-asc-hub X.Y.Z"`. The tag comes after the
-   publish, on this same commit (step 8).
-7. **Publish.** `npm publish`. `prepublishOnly` re-runs `check` + tests, so a broken tree cannot ship.
+3. **Branch.** From an up-to-date `main`, cut `release/X.Y.Z`; a worktree is fine here too. The edits
+   below land on that branch, not on `main`.
+4. **Bump.** `npm version X.Y.Z --no-git-tag-version`.
+5. **CHANGELOG.** `[Unreleased]` → `## [X.Y.Z] — <date>`, fresh `[Unreleased]`, link reference at the
+   bottom (`[X.Y.Z]: …/v/X.Y.Z`), and `[Unreleased]` comparing from `vX.Y.Z`.
+6. **Pack check** (only when `files`/`exports` changed): `npm pack --dry-run`.
+7. **Commit, PR, squash-merge.** `git commit -m "release: @sleep9ull/dsh-asc-hub X.Y.Z"`,
+   `git push -u origin release/X.Y.Z`, `gh pr create`, then
+   `gh pr merge <N> --squash --delete-branch --subject "release: @sleep9ull/dsh-asc-hub X.Y.Z"`.
+   The merge writes a **new** commit hash on `main`; that commit is the release.
+8. **Pull it.** In the checkout you publish from — normally the primary one, not the worktree —
+   `git checkout main && git pull --ff-only`. Confirm `git log -1` is the release commit and
+   `git status --short` is empty. Never publish from the release branch: `gitHead` would record the
+   pre-squash commit and no tag on `main` could match it.
+9. **Publish.** `npm publish`. `prepublishOnly` re-runs `check` + tests, so a broken tree cannot ship.
    This step is irreversible — treat it as the one human decision in the routine.
-8. **Push and tag.** `git push origin main`, then `git tag -a vX.Y.Z -m "X.Y.Z — <one line>"` on
-   that commit and `git push origin vX.Y.Z`. `git rev-parse vX.Y.Z^{tree}` must equal
-   `git rev-parse <gitHead>^{tree}` — compare trees, not commits, because a squash merge keeps the
-   tree and changes the hash.
-9. **Announce.** No GitHub Release to create: the tag, the CHANGELOG entry and the npm version page
-   are the record. Say so explicitly when the `engines.dsh` floor moved.
-10. **Dogfood the user path.** Switch the profile to the registry copy, restart, and confirm you are
+10. **Tag and verify.** On that same commit: `git tag -a vX.Y.Z -m "X.Y.Z — <one line>"`,
+    `git push origin vX.Y.Z`, then compare `git rev-parse vX.Y.Z^{commit}` with
+    `npm view @sleep9ull/dsh-asc-hub@X.Y.Z gitHead`. Publishing from `main` after the merge makes them
+    the same commit; if a squash ever separates them, compare `vX.Y.Z^{tree}` with `<gitHead>^{tree}`.
+11. **Announce.** No GitHub Release to create: the tag, the CHANGELOG entry and the npm version page
+    are the record. Say so explicitly when the `engines.dsh` floor moved.
+12. **Dogfood the user path.** Switch the profile to the registry copy, restart, and confirm you are
     looking at what a user gets:
 
     ```
@@ -155,6 +172,8 @@ If the release is bad:
 ## 7. Anti-patterns (each one has cost a user)
 
 - Publishing from a dirty tree, or with `[Unreleased]` half-written.
+- Publishing from a release branch before its PR is squash-merged: `gitHead` keeps the pre-squash hash,
+  and no tag on `main` can match it — 0.1.1 did exactly this.
 - `npm unpublish`, or reusing a version number.
 - The npm version, the CHANGELOG heading, the tag and `gitHead` disagreeing — a tag that points at a
   commit npm never received is worse than none.
@@ -177,9 +196,10 @@ PRE-FLIGHT
 RELEASE
 [ ] package.json version bumped
 [ ] CHANGELOG: [Unreleased] → [x.y.z] — date, fresh [Unreleased], link ref
-[ ] commit "release: @sleep9ull/dsh-asc-hub X.Y.Z"
+[ ] commit "release: @sleep9ull/dsh-asc-hub X.Y.Z", PR opened, squash-merged
+[ ] main pulled; HEAD is the release commit, tree clean
 [ ] npm publish (irreversible)
-[ ] git push origin main; tag vX.Y.Z on that commit and push the tag
+[ ] tag vX.Y.Z on that commit, pushed, and equal to gitHead
 
 AFTER
 [ ] dev→registry dogfood: footer version, Versions section, Add plugin finds it

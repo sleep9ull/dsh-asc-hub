@@ -303,7 +303,7 @@ One derived object keeps the trigger and the panel in sync. `status` returns it:
   "operation": { "id": "...", "kind": "upload | distribute | submit", "startedAt": "..." } | null,
   "lastError": { "code": "...", "message": "..." } | null,
   "mode": "read-only | write",
-  "hub": { "version": "0.1.0" },
+  "hub": { "version": "0.1.1" },
   "skills": { "installed": true, "count": 25, "ref": "f52c4f0", "installedAt": "...", "root": "...", "checkedAt": "..." },
   "update": { "available": false, "scope": "hub | core | null", "latest": "6.6.0 | null" },
   "checkedAt": "2026-11-09T05:00:00.000Z"
@@ -319,7 +319,7 @@ that opens by default, with `install` or `update` at the end of that line when t
 do; the model learns it from `status` and uses the `asc-*` skills when present.
 
 `hub.version` is read once from the plugin's own `package.json`, so the footer can report
-both halves of the product on one line: `version 0.1.0 © sleep9ull · engine asc 6.5.3`, where
+both halves of the product on one line: `version 0.1.1 © sleep9ull · engine asc 6.5.3`, where
 the author and the engine are links to their GitHub projects. `update` is the contract the
 footer reserves space for: when a release feed says something newer exists, `available`
 becomes `true`, `scope` says which half (`core` re-runs the installer from the panel, `hub`

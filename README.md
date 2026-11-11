@@ -52,7 +52,7 @@ vendors or re-implements the CLI, so upgrading `asc` upgrades the product.
 Two doors, one dispatcher: the panel and the `asc_hub` model tool call the same Host operations, so
 they share classification, gating and redaction.
 
-> **Version 0.1.0** — verified against DeepSeek Harness 0.2.2-rc.1 and `asc` 6.5.3.
+> **Version 0.1.1** — verified against DeepSeek Harness 0.2.2-rc.1 and `asc` 6.5.3.
 
 ## Installation
 
@@ -67,7 +67,7 @@ Open **Plugins → Add plugin**, paste the spec and confirm:
 @sleep9ull/dsh-asc-hub
 ```
 
-Pin a version with `@sleep9ull/dsh-asc-hub@0.1.0`. From then on **Plugins → Installed → Versions**
+Pin a version with `@sleep9ull/dsh-asc-hub@0.1.1`. From then on **Plugins → Installed → Versions**
 owns updates.
 
 Then enable the `asc-hub` row (it is titled **App Store Connect Hub** in the Plugin Manager) and open

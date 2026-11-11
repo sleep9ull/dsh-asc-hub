@@ -50,7 +50,7 @@ iOS 앱 하나를 내보내는 시간은 대부분 코드를 쓰는 데 쓰이�
 문 두 개, 디스패처 하나: 패널과 `asc_hub` 모델 도구는 같은 Host 작업을 호출하므로 분류, 게이트,
 민감정보 마스킹을 공유합니다.
 
-> **버전 0.1.0** — DeepSeek Harness 0.2.2-rc.1 및 `asc` 6.5.3에서 검증했습니다.
+> **버전 0.1.1** — DeepSeek Harness 0.2.2-rc.1 및 `asc` 6.5.3에서 검증했습니다.
 
 ## 설치
 
@@ -64,7 +64,7 @@ iOS 앱 하나를 내보내는 시간은 대부분 코드를 쓰는 데 쓰이�
 @sleep9ull/dsh-asc-hub
 ```
 
-버전을 고정하려면 `@sleep9ull/dsh-asc-hub@0.1.0`처럼 씁니다. 이후 업데이트는
+버전을 고정하려면 `@sleep9ull/dsh-asc-hub@0.1.1`처럼 씁니다. 이후 업데이트는
 **Plugins → Installed → Versions(플러그인 → 설치됨 → 버전)**이 담당합니다.
 
 그다음 `asc-hub` 행을 켜고(플러그인 관리자에서 제목은 **App Store Connect Hub(App Store Connect 콘솔)**), 오른쪽 사이드바에서

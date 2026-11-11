@@ -6,6 +6,11 @@ All notable changes to `dsh-asc-hub` are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.1.1] — 2026-11-11
+
+How the repository presents itself: English first, badges that link somewhere, the engine credited in
+the hero, a new icon and the row title capitalised. Nothing under `src/` changed.
+
 ### Changed
 
 - **The row title is capitalised.** `locale/en.json` now reads **App Store Connect Hub**, and the four
@@ -309,5 +314,6 @@ and read sales — with the same operations behind the `asc_hub` tool and the sa
 
 - One account/profile at a time; multi-team `asc --profile` switching is roadmapped.
 
-[Unreleased]: https://github.com/sleep9ull/dsh-asc-hub/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/sleep9ull/dsh-asc-hub/commits/main
+[0.1.1]: https://www.npmjs.com/package/@sleep9ull/dsh-asc-hub/v/0.1.1
 [0.1.0]: https://www.npmjs.com/package/@sleep9ull/dsh-asc-hub/v/0.1.0

@@ -50,7 +50,7 @@ iOS アプリを世に出す時間の大半は、コードを書くことでは�
 扉は 2 つ、ディスパッチャは 1 つ。パネルと `asc_hub` モデルツールは同じ Host 操作を呼ぶため、分類・
 ゲート・マスキングを共有します。
 
-> **バージョン 0.1.0** — DeepSeek Harness 0.2.2-rc.1 と `asc` 6.5.3 で検証済みです。
+> **バージョン 0.1.1** — DeepSeek Harness 0.2.2-rc.1 と `asc` 6.5.3 で検証済みです。
 
 ## インストール
 
@@ -65,7 +65,7 @@ iOS アプリを世に出す時間の大半は、コードを書くことでは�
 @sleep9ull/dsh-asc-hub
 ```
 
-バージョンを固定するなら `@sleep9ull/dsh-asc-hub@0.1.0` と書きます。以後の更新は
+バージョンを固定するなら `@sleep9ull/dsh-asc-hub@0.1.1` と書きます。以後の更新は
 **Plugins → Installed → Versions（プラグイン → インストール済み → バージョン）**が担当します。
 
 次に `asc-hub` の行を有効にし（プラグインマネージャでの表示名は **App Store Connect Hub（App Store Connect コンソール）**）、

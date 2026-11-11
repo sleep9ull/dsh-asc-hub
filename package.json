@@ -1,6 +1,6 @@
 {
   "name": "@sleep9ull/dsh-asc-hub",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "DeepSeek Harness plugin: an App Store Connect console that installs and inherits the asc CLI, signs in through the macOS Keychain, and ships builds to TestFlight, submits releases and reads sales.",
   "license": "MIT",
   "type": "module",

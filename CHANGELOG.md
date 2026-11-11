@@ -6,6 +6,13 @@ All notable changes to `dsh-asc-hub` are recorded here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- **Releases carry a tag again.** Each version is tagged `v<version>` (annotated) on the commit
+  `npm publish` ships, verified against the packument's `gitHead`; no GitHub Release is created.
+  `AGENTS.md`, `docs/RELEASING.md` and `docs/WORKFLOW.md` state the rule, and `[Unreleased]` compares
+  from `v0.1.1` again.
+
 ## [0.1.1] — 2026-11-11
 
 How the repository presents itself: English first, badges that link somewhere, the engine credited in
@@ -314,6 +321,6 @@ and read sales — with the same operations behind the `asc_hub` tool and the sa
 
 - One account/profile at a time; multi-team `asc --profile` switching is roadmapped.
 
-[Unreleased]: https://github.com/sleep9ull/dsh-asc-hub/commits/main
+[Unreleased]: https://github.com/sleep9ull/dsh-asc-hub/compare/v0.1.1...HEAD
 [0.1.1]: https://www.npmjs.com/package/@sleep9ull/dsh-asc-hub/v/0.1.1
 [0.1.0]: https://www.npmjs.com/package/@sleep9ull/dsh-asc-hub/v/0.1.0

@@ -88,13 +88,15 @@ things that silently break.
 4. **CHANGELOG.** `[Unreleased]` → `## [x.y.z] — <date>`, fresh `[Unreleased]`, link reference at the
    bottom.
 5. **Pack check** (only when `files`/`exports` changed): `npm pack --dry-run`.
-6. **Commit.** `git commit -m "release: @sleep9ull/dsh-asc-hub X.Y.Z"`. No tag — `gitHead` in the
-   packument records the commit npm receives.
+6. **Commit.** `git commit -m "release: @sleep9ull/dsh-asc-hub X.Y.Z"`. The tag comes after the
+   publish, on this same commit (step 8).
 7. **Publish.** `npm publish`. `prepublishOnly` re-runs `check` + tests, so a broken tree cannot ship.
    This step is irreversible — treat it as the one human decision in the routine.
-8. **Push.** `git push origin main`.
-9. **Announce.** No release object to create: the CHANGELOG entry and the npm version page are the
-   record. Say so explicitly when the `engines.dsh` floor moved.
+8. **Push and tag.** `git push origin main`, then `git tag -a vX.Y.Z -m "X.Y.Z — <one line>"` on
+   that commit and `git push origin vX.Y.Z`. `git rev-parse vX.Y.Z^{commit}` must equal the
+   packument's `gitHead`; a tag that points elsewhere is worse than none.
+9. **Announce.** No GitHub Release to create: the tag, the CHANGELOG entry and the npm version page
+   are the record. Say so explicitly when the `engines.dsh` floor moved.
 10. **Dogfood the user path.** Switch the profile to the registry copy, restart, and confirm you are
     looking at what a user gets:
 
@@ -153,7 +155,8 @@ If the release is bad:
 
 - Publishing from a dirty tree, or with `[Unreleased]` half-written.
 - `npm unpublish`, or reusing a version number.
-- The npm version and the CHANGELOG heading that disagree — or a tag left behind that points elsewhere.
+- The npm version, the CHANGELOG heading, the tag and `gitHead` disagreeing — a tag that points at a
+  commit npm never received is worse than none.
 - Bumping the version in a normal commit, so every refactor looks like a release.
 - Treating a GitHub Release as the release action (DSH never reads it).
 - Declaring an `engines.dsh` floor that excludes the prerelease runtime you actually use.
@@ -173,9 +176,9 @@ PRE-FLIGHT
 RELEASE
 [ ] package.json version bumped
 [ ] CHANGELOG: [Unreleased] → [x.y.z] — date, fresh [Unreleased], link ref
-[ ] commit "release: @sleep9ull/dsh-asc-hub X.Y.Z" (no tag)
+[ ] commit "release: @sleep9ull/dsh-asc-hub X.Y.Z"
 [ ] npm publish (irreversible)
-[ ] git push origin main
+[ ] git push origin main; tag vX.Y.Z on that commit and push the tag
 
 AFTER
 [ ] dev→registry dogfood: footer version, Versions section, Add plugin finds it

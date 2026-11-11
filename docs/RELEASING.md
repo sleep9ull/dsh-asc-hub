@@ -62,11 +62,12 @@ the Installed tab.
 So:
 
 - **npm publish is the release.** It is what makes `Update` appear.
-- **There is no tag and no GitHub Release.** `npm publish` records the commit it shipped in the
-  packument's `gitHead` (`npm view @sleep9ull/dsh-asc-hub@0.1.0 gitHead`), which is the provenance a
-  tag used to carry. A tag that drifts from the published tree — `v0.1.0` pointed three commits past
-  the code npm was meant to receive — is worse than no tag, and a GitHub Release only keeps a second
-  copy of notes the CHANGELOG already owns.
+- **There is a tag, and no GitHub Release.** Every version is tagged `v<version>` (annotated) on the
+  commit `npm publish` shipped, so the tag and the packument's `gitHead`
+  (`npm view @sleep9ull/dsh-asc-hub@0.1.1 gitHead`) name the same commit and can be checked against
+  each other. The tag is created with the publish, never after it: `v0.1.0` once pointed three
+  commits past the code npm received, which is the failure this rule exists to prevent. A GitHub
+  Release is still not used — it would keep a second copy of notes the CHANGELOG owns.
 - A git spec (`github:sleep9ull/dsh-asc-hub#<commit>`) still installs, pinned to a commit, but that
   profile can never be upgraded in place — only uninstall + reinstall.
 
@@ -99,14 +100,17 @@ Rules that never bend:
 3. Move `[Unreleased]` in `CHANGELOG.md` to `## [x.y.z] — <date>`, leave a fresh `[Unreleased]`, and
    add the link reference at the bottom.
 4. If the wire changed, `docs/CONTRACT.md` changed in the same commit (invariant in `AGENTS.md`).
-5. Commit. No tag: `gitHead` records the commit at publish time.
+5. Commit: `git commit -m "release: @sleep9ull/dsh-asc-hub x.y.z"`. The tag comes after the publish,
+   on this same commit.
 6. `npm publish` — `prepublishOnly` re-runs `check` + tests, and refuses to publish a broken tree.
    `npm pack --dry-run` first if the `files` list changed (~122 kB packed, 46 files today).
    The README the registry renders is the tarball's `README.md` — English, since the translations are
    `README.zh.md`, `README.ko.md` and `README.ja.md` — and every link in it is absolute:
    npmjs.com does not resolve relative paths, so `README.zh.md`, `docs/**` and `icon.svg` must stay
    full URLs or they are 404s on the package page.
-7. `git push origin main`.
+7. `git push origin main`, then tag the published commit and push the tag:
+   `git tag -a vx.y.z -m "x.y.z — <one line>"` and `git push origin vx.y.z`.
+   `git rev-parse vx.y.z^{commit}` must equal the packument's `gitHead`.
 8. Re-verify the published copy the way a user gets it — remove the `link:` dependency and install
    the registry version (see below), then confirm the footer reports `x.y.z` after a restart.
 9. **T+1 day:** ask `plugin_market` for `@sleep9ull/dsh-asc-hub`. Found → the catalog picked it up; absent →

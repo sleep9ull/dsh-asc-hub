@@ -88,40 +88,52 @@ Rules that never bend:
 
 - A published version is immutable. Never reuse or overwrite one; npm allows an unpublish for 72
   hours and it is still the wrong tool — ship `0.2.1`.
-- `package.json` `version` and the CHANGELOG heading (`## [0.2.0] — YYYY-MM-DD`) name the same
-  release. Nothing else is created: the packument's `gitHead` is the record of which commit npm
-  received, so a version, its notes and its code still name one thing.
+- `package.json` `version`, the CHANGELOG heading (`## [0.2.0] — YYYY-MM-DD`) and the `v0.2.0` tag
+  name one release. The packument's `gitHead` records the commit npm received and the tag marks the
+  same tree, so a version, its notes, its code and its tag still name one thing.
 - `HUB_VERSION` in `src/host/dispatch.ts` is read once from `package.json` at Host load, so the footer
   reports the version of the **loaded** copy: after a bump, restart the Host to see it. A linked
   checkout shows the new number only after a restart, not after a page refresh.
 
 ## Release checklist
 
-1. `npm test` (Host) and `node --experimental-strip-types client/__smoke__.mts` (Client) green;
-   `npm run check` clean.
-2. Edit `package.json` `version`.
-3. Move `[Unreleased]` in `CHANGELOG.md` to `## [x.y.z] — <date>`, leave a fresh `[Unreleased]`, and
-   add the link reference at the bottom.
-4. If the wire changed, `docs/CONTRACT.md` changed in the same commit (invariant in `AGENTS.md`).
-5. Commit: `git commit -m "release: @sleep9ull/dsh-asc-hub x.y.z"`. The tag comes after the publish,
-   on this same commit.
-6. `npm publish` — `prepublishOnly` re-runs `check` + tests, and refuses to publish a broken tree.
-   `npm pack --dry-run` first if the `files` list changed (~122 kB packed, 46 files today).
-   The README the registry renders is the tarball's `README.md` — English, since the translations are
-   `README.zh.md`, `README.ko.md` and `README.ja.md` — and every link in it is absolute:
-   npmjs.com does not resolve relative paths, so `README.zh.md`, `docs/**` and `icon.svg` must stay
-   full URLs or they are 404s on the package page.
-7. `git push origin main`, then tag the published commit and push the tag:
-   `git tag -a vx.y.z -m "x.y.z — <one line>"` and `git push origin vx.y.z`.
-   `git rev-parse vx.y.z^{tree}` must equal `git rev-parse <gitHead>^{tree}`.
-8. Re-verify the published copy the way a user gets it — remove the `link:` dependency and install
-   the registry version (see below), then confirm the footer reports `x.y.z` after a restart.
-9. **T+1 day:** ask `plugin_market` for `@sleep9ull/dsh-asc-hub`. Found → the catalog picked it up; absent →
-   step 10.
-10. **T+3 days, still absent:** open a listing request with the catalog, and/or publish our own
+The release is a pull request, and the publish happens from `main` after it merges.
+
+1. **Green.** `npm run check` clean; `npm test` (Host) and
+   `node --experimental-strip-types client/__smoke__.mts` (Client) green.
+2. **Branch.** Cut `release/x.y.z` from an up-to-date `main`. A `git worktree` is fine for the edit;
+   step 7 says where the publish has to run.
+3. **Bump.** `npm version x.y.z --no-git-tag-version` — it edits `package.json` and
+   `package-lock.json` and creates no tag.
+4. **CHANGELOG.** Move `[Unreleased]` to `## [x.y.z] — <date>`, leave a fresh `[Unreleased]`, add
+   `[x.y.z]: https://www.npmjs.com/package/@sleep9ull/dsh-asc-hub/v/x.y.z` at the bottom, and point
+   `[Unreleased]` at `compare/vx.y.z...HEAD`.
+5. **Contract.** If the wire changed, `docs/CONTRACT.md` changed in the same commit (invariant in
+   `AGENTS.md`).
+6. **Commit, PR, squash-merge.** `git commit -m "release: @sleep9ull/dsh-asc-hub x.y.z"`, push the
+   branch, open the PR, then `gh pr merge <N> --squash --delete-branch`. The merge writes a **new**
+   commit on `main`; that commit is the release and its hash is what npm will record.
+7. **Pull it.** In the checkout you publish from — normally the primary one, not the worktree —
+   `git checkout main && git pull --ff-only`. Confirm `git log -1` is the release commit and
+   `git status --short` is empty. Publishing from the release branch records the pre-squash commit as
+   `gitHead`, and no tag on `main` can then match it by hash.
+8. **Publish.** `npm publish` — `prepublishOnly` re-runs `check` + tests, and refuses to publish a
+   broken tree. `npm pack --dry-run` first if the `files` list changed (~122 kB packed, 46 files
+   today). The README the registry renders is the tarball's `README.md` — English, since the
+   translations are `README.zh.md`, `README.ko.md` and `README.ja.md` — and every link in it is
+   absolute: npmjs.com does not resolve relative paths, so `README.zh.md`, `docs/**` and `icon.svg`
+   must stay full URLs or they are 404s on the package page.
+9. **Tag and verify.** On the published commit: `git tag -a vx.y.z -m "x.y.z — <one line>"` and
+   `git push origin vx.y.z`. `git rev-parse vx.y.z^{commit}` must equal `npm view … gitHead`; if a
+   squash ever separates them, compare `vx.y.z^{tree}` with `<gitHead>^{tree}` instead.
+10. **Re-verify the published copy** the way a user gets it — remove the `link:` dependency and
+    install the registry version (see below), then confirm the footer reports `x.y.z` after a restart.
+11. **T+1 day:** ask `plugin_market` for `@sleep9ull/dsh-asc-hub`. Found → the catalog picked it up;
+    absent → step 12.
+12. **T+3 days, still absent:** open a listing request with the catalog, and/or publish our own
     `@sleep9ull/dsh-asc-hub` index (see [Distribution vs discovery](#distribution-vs-discovery-npm-ships-it-an-index-finds-it)).
 
-Steps 9–10 are discovery only. Skipping them costs nothing at install time — **Add plugin** and
+Steps 11–12 are discovery only. Skipping them costs nothing at install time — **Add plugin** and
 `dsh plugin add` read npm directly — but it costs every search in Discover.
 
 First publish needs `npm login` once, with the account that owns the `@sleep9ull` scope. The package

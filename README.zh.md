@@ -22,6 +22,11 @@
   <a href="https://www.npmjs.com/package/@sleep9ull/dsh-asc-hub"><img alt="npm" src="https://img.shields.io/npm/v/%40sleep9ull%2Fdsh-asc-hub?style=flat-square&label=npm&color=cb3837"></a>
 </p>
 
+<p align="center">
+  <b>引擎：</b><a href="https://github.com/rorkai/App-Store-Connect-CLI"><code>asc</code></a> —— Rudrank Riyam 的开源 App Store Connect CLI。<br>
+  独立安装、作为外部程序调用，不打包、不内联、不 fork。
+</p>
+
 <div align="center">
 
 [概述](#概述) · [安装](#安装) · [功能](#功能) · [工作流程](#工作流程) · [首次配置](#首次配置) ·

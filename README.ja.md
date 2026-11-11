@@ -22,6 +22,11 @@
   <a href="https://www.npmjs.com/package/@sleep9ull/dsh-asc-hub"><img alt="npm" src="https://img.shields.io/npm/v/%40sleep9ull%2Fdsh-asc-hub?style=flat-square&label=npm&color=cb3837"></a>
 </p>
 
+<p align="center">
+  <b>エンジン:</b> <a href="https://github.com/rorkai/App-Store-Connect-CLI"><code>asc</code></a> — Rudrank Riyam によるオープンソースの App Store Connect CLI。<br>
+  別途インストールし外部プログラムとして実行します。同梱・内蔵・フォークはしません。
+</p>
+
 <div align="center">
 
 [概要](#概要) · [インストール](#インストール) · [機能](#機能) · [ワークフロー](#ワークフロー) ·

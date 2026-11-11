@@ -73,7 +73,9 @@ These do not regress. Each has a cheap test; run the test before claiming the ch
    `--asc-hub-accent: #0071e3` (App Store Connect blue), declared once on `[data-asc-hub]` and aliased
    onto `--dsw-alias-brand-primary` inside this subtree only, so the host UI is never repainted and no
    rule repeats the literal. *Test:* the client smoke fails unless there is exactly one literal, it is
-   `#0071e3`, and it is aliased. Artwork keeps its own colors in `icon.svg`.
+   `#0071e3`, and it is aliased. Artwork keeps its own colors in `icon.svg`, which is an original
+   reinterpretation of the App Store Connect visual language (blue field, inset rounded frame, the
+   three-stroke A) rather than Apple's icon asset: do not trace, embed or download the real one.
 6. **Key material never persists, logs or echoes.** The plugin hands key ids/paths to `asc`; `asc`
    and the macOS Keychain own storage. Every outbound string passes `src/host/redact.ts`; ids are
    shortened to their last four characters (`keyIdTail`).
@@ -192,10 +194,11 @@ Use the `plugin_manager` tool; do not reproduce installation with shell commands
   indicator, so `name: @scope/pkg` is a parse error (`bad indentation of a mapping entry`) and the
   install is rejected; write `name: "@scope/pkg"`.
 - **npm renders the tarball's `README.md`, and it does not resolve relative paths.** A relative
-  `icon.svg`, `README.en.md` or `docs/CONTRACT.md` looks right on GitHub and is a 404 on npmjs.com, so
+  `icon.svg`, `README.zh.md` or `docs/CONTRACT.md` looks right on GitHub and is a 404 on npmjs.com, so
   every link and image in the four READMEs and in `CHANGELOG.md` is a full `github.com/sleep9ull/…/blob/main/`
   or `raw.githubusercontent.com/…` URL. npm auto-includes every root `README*`, so the translations do
-  travel in the tarball, but the package page still renders `README.md` alone.
+  travel in the tarball, but the package page still renders `README.md` alone — which is why English is
+  `README.md` and the other three are `README.<lang>.md`, reached from the language line under the title.
 - **A scoped package publishes as restricted unless `publishConfig.access` is `public`.** Without the
   field npm tries to create a paid private package and the first `npm publish` fails, so `package.json`
   carries `"publishConfig": { "access": "public" }`.

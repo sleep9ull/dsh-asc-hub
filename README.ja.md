@@ -10,16 +10,16 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/sleep9ull/dsh-asc-hub/blob/main/README.md">简体中文</a> | <a href="https://github.com/sleep9ull/dsh-asc-hub/blob/main/README.en.md">English</a> | <a href="https://github.com/sleep9ull/dsh-asc-hub/blob/main/README.ko.md">한국어</a> | 日本語
+  <a href="https://github.com/sleep9ull/dsh-asc-hub/blob/main/README.md">English</a> | <a href="https://github.com/sleep9ull/dsh-asc-hub/blob/main/README.zh.md">简体中文</a> | <a href="https://github.com/sleep9ull/dsh-asc-hub/blob/main/README.ko.md">한국어</a> | 日本語
 </p>
 
 <p align="center">
-  <img alt="DSH" src="https://img.shields.io/badge/DSH-%3E%3D0.2.2--rc.1%20%3C0.3.0-4c6ef5?style=flat-square&labelColor=454a54">
-  <img alt="Node" src="https://img.shields.io/badge/Node-%3E%3D22-339933?style=flat-square&logo=node.js&logoColor=white">
-  <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-strict-3178c6?style=flat-square&logo=typescript&logoColor=white">
-  <img alt="License" src="https://img.shields.io/badge/license-MIT-263146?style=flat-square">
+  <a href="https://github.com/sleep9ull/dsh-asc-hub/blob/main/README.ja.md#%E5%8B%95%E4%BD%9C%E7%92%B0%E5%A2%83"><img alt="DSH" src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fsleep9ull%2Fdsh-asc-hub%2Fmain%2Fpackage.json&query=%24.engines.dsh&label=DSH&style=flat-square&color=4c6ef5&labelColor=454a54"></a>
+  <a href="https://nodejs.org/"><img alt="Node" src="https://img.shields.io/node/v/%40sleep9ull%2Fdsh-asc-hub?style=flat-square&label=Node&logo=node.js&logoColor=white&color=339933"></a>
+  <a href="https://github.com/sleep9ull/dsh-asc-hub/blob/main/tsconfig.json"><img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-strict-3178c6?style=flat-square&logo=typescript&logoColor=white"></a>
+  <a href="https://github.com/sleep9ull/dsh-asc-hub/blob/main/LICENSE"><img alt="License" src="https://img.shields.io/npm/l/%40sleep9ull%2Fdsh-asc-hub?style=flat-square&color=263146"></a>
   <a href="https://github.com/sleep9ull/dsh-asc-hub/stargazers"><img alt="Stars" src="https://img.shields.io/github/stars/sleep9ull/dsh-asc-hub?style=flat-square&color=4b6fff"></a>
-  <img alt="npm" src="https://img.shields.io/npm/v/%40sleep9ull%2Fdsh-asc-hub?style=flat-square&label=npm&color=cb3837">
+  <a href="https://www.npmjs.com/package/@sleep9ull/dsh-asc-hub"><img alt="npm" src="https://img.shields.io/npm/v/%40sleep9ull%2Fdsh-asc-hub?style=flat-square&label=npm&color=cb3837"></a>
 </p>
 
 <div align="center">

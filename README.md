@@ -1,229 +1,248 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/sleep9ull/dsh-asc-hub/main/icon.svg" width="88" alt="dsh-asc-hub 图标">
+  <img src="https://raw.githubusercontent.com/sleep9ull/dsh-asc-hub/main/icon.svg" width="88" alt="dsh-asc-hub icon">
 </p>
 
 <h1 align="center">dsh-asc-hub</h1>
 
 <p align="center">
-  <strong>DeepSeek Harness 里的 App Store Connect 控制台。</strong><br>
-  在当前会话的工作目录里构建、发 TestFlight、提交审核、发布上线 —— 都在侧边面板里，就在写出这段代码的会话旁边。
+  <strong>The App Store Connect console inside DeepSeek Harness.</strong><br>
+  Build the session's working directory, ship it to TestFlight, submit it for review, release it —
+  in the side panel, next to the code that built it.
 </p>
 
 <p align="center">
-  简体中文 | <a href="https://github.com/sleep9ull/dsh-asc-hub/blob/main/README.en.md">English</a> | <a href="https://github.com/sleep9ull/dsh-asc-hub/blob/main/README.ko.md">한국어</a> | <a href="https://github.com/sleep9ull/dsh-asc-hub/blob/main/README.ja.md">日本語</a>
+  English | <a href="https://github.com/sleep9ull/dsh-asc-hub/blob/main/README.zh.md">简体中文</a> | <a href="https://github.com/sleep9ull/dsh-asc-hub/blob/main/README.ko.md">한국어</a> | <a href="https://github.com/sleep9ull/dsh-asc-hub/blob/main/README.ja.md">日本語</a>
 </p>
 
 <p align="center">
-  <img alt="DSH" src="https://img.shields.io/badge/DSH-%3E%3D0.2.2--rc.1%20%3C0.3.0-4c6ef5?style=flat-square&labelColor=454a54">
-  <img alt="Node" src="https://img.shields.io/badge/Node-%3E%3D22-339933?style=flat-square&logo=node.js&logoColor=white">
-  <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-strict-3178c6?style=flat-square&logo=typescript&logoColor=white">
-  <img alt="License" src="https://img.shields.io/badge/license-MIT-263146?style=flat-square">
+  <a href="https://github.com/sleep9ull/dsh-asc-hub/blob/main/README.md#requirements"><img alt="DSH" src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fsleep9ull%2Fdsh-asc-hub%2Fmain%2Fpackage.json&query=%24.engines.dsh&label=DSH&style=flat-square&color=4c6ef5&labelColor=454a54"></a>
+  <a href="https://nodejs.org/"><img alt="Node" src="https://img.shields.io/node/v/%40sleep9ull%2Fdsh-asc-hub?style=flat-square&label=Node&logo=node.js&logoColor=white&color=339933"></a>
+  <a href="https://github.com/sleep9ull/dsh-asc-hub/blob/main/tsconfig.json"><img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-strict-3178c6?style=flat-square&logo=typescript&logoColor=white"></a>
+  <a href="https://github.com/sleep9ull/dsh-asc-hub/blob/main/LICENSE"><img alt="License" src="https://img.shields.io/npm/l/%40sleep9ull%2Fdsh-asc-hub?style=flat-square&color=263146"></a>
   <a href="https://github.com/sleep9ull/dsh-asc-hub/stargazers"><img alt="Stars" src="https://img.shields.io/github/stars/sleep9ull/dsh-asc-hub?style=flat-square&color=4b6fff"></a>
-  <img alt="npm" src="https://img.shields.io/npm/v/%40sleep9ull%2Fdsh-asc-hub?style=flat-square&label=npm&color=cb3837">
+  <a href="https://www.npmjs.com/package/@sleep9ull/dsh-asc-hub"><img alt="npm" src="https://img.shields.io/npm/v/%40sleep9ull%2Fdsh-asc-hub?style=flat-square&label=npm&color=cb3837"></a>
 </p>
 
 <div align="center">
 
-[概述](#概述) · [安装](#安装) · [功能](#功能) · [工作流程](#工作流程) · [首次配置](#首次配置) ·
-[环境要求](#环境要求) · [安全](#安全) · [配置](#配置) · [开发](#开发) ·
-[已知限制](#已知限制) · [文档](#文档)
+[Overview](#overview) · [Installation](#installation) · [Features](#features) ·
+[Workflow](#workflow) · [Onboarding](#onboarding) · [Requirements](#requirements) ·
+[Security](#security) · [Configuration](#configuration) · [Development](#development) ·
+[Limitations](#limitations) · [Documentation](#documentation)
 
 </div>
 
-## 概述
+## Overview
 
-发一个 iOS 应用，大部分时间并不花在写代码上。花在：把刚构建出来的东西打包归档、上传、给对的
-TestFlight 分组挑对的构建、写清楚测试人员该看什么、等审核、再发布。这些事通常发生在 Xcode
-Organizer、一个浏览器标签和终端之间，而且往往就在 agent 写完代码的几分钟后。
+Most of shipping an iOS app is not writing it. It is archiving the thing you just built, uploading it,
+picking the right build for the right TestFlight group, writing what testers should look at, waiting
+for App Review, and then releasing it. That work happens in Xcode Organizer, a browser tab and a
+terminal, usually minutes after the agent finished the code.
 
-`dsh-asc-hub` 把这一半放进 Harness 的侧边面板，并且按它实际发生的顺序排列。它**把
-[`asc`](https://github.com/rorkai/App-Store-Connect-CLI) 作为外部引擎继承进来** —— 安装它、
-运行它、读它的输出 —— 自己负责控制台、状态机和安全护栏。它不 fork、不内联、不重新实现 CLI，
-所以升级 `asc` 就是升级产品能力。
+`dsh-asc-hub` puts that half in the Harness side panel, in the order it happens. It **inherits
+[`asc`](https://github.com/rorkai/App-Store-Connect-CLI) as an external engine** — installs it, runs
+it, reads its output — and owns the console, the state machine and the safety rails. It never forks,
+vendors or re-implements the CLI, so upgrading `asc` upgrades the product.
 
-两扇门、一个 dispatcher：面板和 `asc_hub` 模型工具调用同一套 Host 操作，因此共享分类、门禁与
-脱敏。
+Two doors, one dispatcher: the panel and the `asc_hub` model tool call the same Host operations, so
+they share classification, gating and redaction.
 
-> **版本 0.1.0** —— 已在 DeepSeek Harness 0.2.2-rc.1 与 `asc` 6.5.3 上验证。
+> **Version 0.1.0** — verified against DeepSeek Harness 0.2.2-rc.1 and `asc` 6.5.3.
 
-## 安装
+## Installation
 
-安装走 Harness 自带的插件管理器 —— 不需要 `git clone`，不需要敲 shell，也不需要下载 tarball：
+The plugin installs through the Harness's own plugin manager — no `git clone`, no shell step, no
+tarball to fetch:
 
-### Plugins → Add plugin（插件 → 添加插件）
+### Plugins → Add plugin
 
-打开 **Plugins → Add plugin（插件 → 添加插件）**，粘贴 spec 并确认：
+Open **Plugins → Add plugin**, paste the spec and confirm:
 
 ```
 @sleep9ull/dsh-asc-hub
 ```
 
-需要固定版本就写 `@sleep9ull/dsh-asc-hub@0.1.0`。之后 **Plugins → Installed → Versions（插件 → 已安装 → 版本）** 负责升级。
+Pin a version with `@sleep9ull/dsh-asc-hub@0.1.0`. From then on **Plugins → Installed → Versions**
+owns updates.
 
-然后启用 `asc-hub` 这一行（插件管理器里标题是 **App Store Connect hub（App Store Connect 控制台）**），在右侧栏打开
-**ASC Hub（ASC 控制台）** 标签页。
+Then enable the `asc-hub` row (it is titled **App Store Connect hub** in the Plugin Manager) and open
+the **ASC Hub** tab in the right sidebar.
 
-> 桌面版的 profile 由 app 自己管理。在 shell 里往 `profiles/<name>` 安装可能报告成功，却不会出现
-> 在 app 里 —— 请通过 app 的插件页面安装。
+> The Desktop app's own profile is managed by the app. Installing into `profiles/<name>` from a shell
+> may report success and still not appear in the app — install through the app's Plugins page.
 
-## 功能
+## Features
 
-| 区块 | 做什么 | 背后的 `asc` |
+| Section | What it does | The `asc` behind it |
 |---|---|---|
-| **App & Bundle** | 选择应用，按浏览器记住选择 | `asc apps list` |
-| **Working directory** | 会话在哪里工作：路径、分支、与 `origin/main` 的差距、未提交文件，以及**这份代码能不能构建** —— 不能时给出原因 | `git status --porcelain=v1 --branch`、`xcode-select -p` |
-| **Build** | 归档会话工作目录里的代码、导出 `.ipa`、上传；版本号与构建号是两个字段 | `asc xcode archive` → `asc xcode export` → `asc builds upload --wait` |
-| **Builds** | 最新构建每页三个，底部固定一行 release 构建，带 `Internal` / `External` / `Release` 标签 | `asc builds list` |
-| **TestFlight** | 选构建、选分组、写 *What to Test*、发出去 | `asc builds test-notes create`、`asc builds add-groups` |
-| **Review** | 选构建；版本已发布则显示 `Reviewed`，否则给出 readiness、阻塞项与 `Submit for review` | `asc validate`、`asc versions create`、`asc review submit` |
-| **Release** | 发布一个已通过审核的版本 | `asc versions release` |
-| **Skills** | 报告继承来的 `asc` 技能包，按需安装 | `asc install-skills` |
+| **App & Bundle** | picks the app, remembers it per browser | `asc apps list` |
+| **Working directory** | where the session works: path, branch, drift from `origin/main`, uncommitted files, and whether this checkout **can build** — with the reason when it cannot | `git status --porcelain=v1 --branch`, `xcode-select -p` |
+| **Build** | archives the code in the session's working directory, exports the `.ipa`, uploads it; version and build number are two fields | `asc xcode archive` → `asc xcode export` → `asc builds upload --wait` |
+| **Builds** | newest builds three at a time, a fixed row for the release build, `Internal` / `External` / `Release` tags | `asc builds list` |
+| **TestFlight** | pick a build, pick groups, write *What to Test*, send | `asc builds test-notes create`, `asc builds add-groups` |
+| **Review** | pick a build; `Reviewed` if its version already shipped, otherwise readiness, blockers and `Submit for review` | `asc validate`, `asc versions create`, `asc review submit` |
+| **Release** | release a version App Review already approved | `asc versions release` |
+| **Skills** | reports the inherited `asc` skill pack and installs it on request | `asc install-skills` |
 
-此外还有面板不画、但模型可用的能力：销售汇总、analytics 报告请求、受围栏保护的只读 `asc`
-argv 逃生口，以及通过 `asc_hub` 工具调用全部面板动作。
+Plus the things the panel does not draw but the model can use: sales summaries, analytics report
+requests, raw read-only `asc` argv through a fenced escape hatch, and every panel action through the
+`asc_hub` tool.
 
-几个值得知道的设计决定：
+A few decisions worth knowing:
 
-- **Build 构建的是目录，不是你挑的文件。** 工作单位是会话正在看的代码；产物落在临时目录，版本号
-  通过构建设置（`MARKETING_VERSION` / `CURRENT_PROJECT_VERSION`）传入，绝不改写你的工程文件。
-- **没走过审核的构建不会声称走过。** 审核针对的是版本，所以面板会问"哪个版本承载这个构建"：
-  只发过 TestFlight 的构建会正确显示为"未提交审核"。
-- **只有一个刷新按钮**，一次重读全部区块；每个步骤拥有自己的构建菜单，因为"发给测试员"和
-  "提交审核"是同一份列表上的两个不同决定。
+- **Build builds the directory, not a file you pick.** The unit of work is the code the session is
+  looking at; artifacts go to a temporary directory, and the version travels as a build setting
+  (`MARKETING_VERSION` / `CURRENT_PROJECT_VERSION`) so your project file is never rewritten.
+- **A build that never went to review does not claim it did.** App Review applies to a version, so
+  the panel asks which version carries a build: TestFlight-only builds are correctly "not submitted".
+- **One refresh button** re-reads every section; each step owns its own build menu, because sending
+  to testers and submitting for review are different decisions about the same list.
 
-## 工作流程
+## Workflow
 
 ```
-工作目录  →  Build  →  Builds  →  TestFlight  →  Review  →  Release
- 能构建吗？  归档      挑一个      发给分组       交苹果      上线商店
-            导出
-            上传
+working directory  →  Build  →  Builds  →  TestFlight  →  Review  →  Release
+     can it build?   archive    pick one     send it      submit     ship it
+                     export                 to groups     to Apple   to the store
+                     upload
 ```
 
-每一步都是真实的 `asc` 调用，无论由面板还是模型发起，门禁完全一致。
+Every step is a real `asc` call, gated the same way whether the panel or the model starts it.
 
-## 首次配置
+## Onboarding
 
-两步都是**本地动作**，在默认的 `read-only` 模式下即可完成 —— 只有向 App Store Connect 写入才需要
-`mode: write`。
+Both steps are **local actions** and work in the default `read-only` mode — only App Store Connect
+publishing needs `mode: write`.
 
-**1. 安装 `asc` 引擎。** 面板会先探测（`asc version`），然后通过 Homebrew（`brew install asc`）或
-官方脚本（`curl -fsSL https://asccli.sh/install | bash`）安装，并展示脱敏后的日志。
+**1. Install the `asc` engine.** The panel detects it (`asc version`), then installs it through
+Homebrew (`brew install asc`) or the official script (`curl -fsSL https://asccli.sh/install | bash`)
+and shows the redacted log.
 
-**2. 用 App Store Connect API Key 登录。** 在
-[App Store Connect → 用户和访问 → 集成](https://appstoreconnect.apple.com/access/integrations/api)
-创建密钥，记下 **Key ID** 与 **Issuer ID**，一次性下载 `AuthKey_XXXXXXXXXX.p8`，把它和两个 id
-一起拖进面板。Host 会把 PEM 写成私有 `0600` 临时文件，交给
-`asc auth login --private-key …`，然后删除它 —— 凭据由 `asc` 存进 macOS Keychain。登录是
-**面板专属**的：模型只会拿到 `CLIENT_ONLY`，凭据交接只发生在人这一侧。
+**2. Sign in with an App Store Connect API key.** Create a key at
+[App Store Connect → Users and Access → Integrations](https://appstoreconnect.apple.com/access/integrations/api),
+note the **Key ID** and **Issuer ID**, download `AuthKey_XXXXXXXXXX.p8` once, and drop it on the panel
+with the two ids. The Host writes the PEM to a private `0600` file, hands it to
+`asc auth login --private-key …`, and deletes it — `asc` keeps the credential in the macOS Keychain.
+Sign-in is **panel-only**: the model gets `CLIENT_ONLY`, so the human owns the credential handoff.
 
-密钥的角色决定你能做什么（上传、TestFlight 与提交需要 Admin 或 App Manager；销售数据需要报表权限）。
-Apple 会强制执行，控制台只报告拒绝，不绕过它。完整流程与排错见
-[docs/ONBOARDING.md](https://github.com/sleep9ull/dsh-asc-hub/blob/main/docs/ONBOARDING.md)。
+The key's role decides what you can do (Admin or App Manager for upload, TestFlight and submission;
+reports access for sales). Apple enforces it; the console reports refusals instead of working around
+them. Full journey and troubleshooting: [docs/ONBOARDING.md](https://github.com/sleep9ull/dsh-asc-hub/blob/main/docs/ONBOARDING.md).
 
-## 环境要求
+## Requirements
 
 | | |
 |---|---|
-| **宿主** | 支持插件的 DeepSeek Harness，`>=0.2.2-rc.1 <0.3.0`（写在 `engines.dsh`，不兼容时插件管理器会拒绝安装） |
-| **Node** | 22 或更新 |
-| **系统** | macOS —— 凭据在 Keychain，Build 需要 Xcode |
-| **Build** | 完整版 Xcode（`xcode-select -p` 必须指向 `Xcode.app/Contents/Developer`）；只有 Command Line Tools 时面板显示 *cannot build: Xcode is not installed*，其余功能照常可用 |
-| **引擎** | `asc` 6.5.x，运行时探测；命令面就是兼容性契约（[docs/UPSTREAM-ASC.md](https://github.com/sleep9ull/dsh-asc-hub/blob/main/docs/UPSTREAM-ASC.md)） |
-| **账号** | 具有 App Store Connect 访问权限的 Apple Developer Program 会员 |
+| **Host** | DeepSeek Harness with plugin support, `>=0.2.2-rc.1 <0.3.0` (declared in `engines.dsh`; the Plugin Manager refuses an incompatible host) |
+| **Node** | 22 or newer |
+| **OS** | macOS — the Keychain holds the credential, and Build needs Xcode |
+| **Build** | a full Xcode (`xcode-select -p` must point at `Xcode.app/Contents/Developer`); with Command Line Tools alone the panel says *cannot build: Xcode is not installed* and everything else still works |
+| **Engine** | `asc` 6.5.x, detected at runtime; the command surface is the compatibility contract ([docs/UPSTREAM-ASC.md](https://github.com/sleep9ull/dsh-asc-hub/blob/main/docs/UPSTREAM-ASC.md) |
+| **Account** | an Apple Developer Program membership with App Store Connect access |
 
-## 安全
+## Security
 
-- **永远不要 Apple ID 密码。** App Store Connect API Key 签发 JWT；没有密码、没有 2FA 需要穿过插件。
-- **密钥材料从不落盘、不写日志、不回显。** PEM 只存在于 `0600` 临时文件里，并在 `finally` 中删除；
-  所有出站文本都会脱敏（私钥块、`ASC_*` 赋值、`AuthKey_*.p8` 路径、JWT），id 只保留末四位。
-- **默认只读。** 任何 App Store Connect 写入都需要 `mode: write` **和** `input.confirm: true`，
-  由模型发起时还要经过 Host 审批。安装引擎与登录是本地动作，刻意允许在 `read-only` 下完成。
-- **逃生口有围栏。** 原始 `run` 动作拒绝 `auth`、`web`、`install-skills` 以及会改状态的那几族命令，
-  且在 `read-only` 下子进程会带 `asc --read-only`。
-- **遥测关闭。** 默认以 `ASC_TELEMETRY_DISABLED=1` 运行 `asc`。
-- **面板路径不写会话日志或模型历史** —— 它走 Fetch 路由，不是会话命令。
+- **No Apple ID password, ever.** App Store Connect API keys sign JWTs; there is no password or 2FA
+  to route through a plugin.
+- **Key material never persists, logs or echoes.** The PEM lives in a `0600` temp file that is deleted
+  in a `finally`; every outbound string is redacted (private-key blocks, `ASC_*` assignments,
+  `AuthKey_*.p8` paths, JWTs), and ids are shortened to their last four characters.
+- **Read-only by default.** Every App Store Connect write needs `mode: write` *and*
+  `input.confirm: true`, plus a Host approval when the model starts it. Installing the engine and
+  signing in are deliberately allowed in `read-only` so onboarding can finish.
+- **The escape hatch is fenced.** The raw `run` action refuses `auth`, `web` and `install-skills`
+  plus the mutating command families, and in `read-only` the child runs with `asc --read-only`.
+- **Telemetry is off.** `asc` runs with `ASC_TELEMETRY_DISABLED=1` by default.
+- **The panel path never writes the session log or model history** — it is a Fetch route, not a
+  session command.
 
-## 配置
+## Configuration
 
-这一行的 `config` 由 Host 读取；类型不对的值会回落到安全默认值。与
-[docs/CONTRACT.md § Configuration](https://github.com/sleep9ull/dsh-asc-hub/blob/main/docs/CONTRACT.md) 保持一致。
+The row's `config` is read by the Host; values with the wrong type fall back to the safe default.
+Mirrors [docs/CONTRACT.md § Configuration](https://github.com/sleep9ull/dsh-asc-hub/blob/main/docs/CONTRACT.md).
 
-| 键 | 默认值 | 含义 |
+| key | default | meaning |
 |---|---|---|
-| `ascPath` | `asc` | 要运行的二进制：`PATH` 上的名字或绝对路径。 |
-| `profile` | `null` | 通过 `--profile` 传入的命名登录配置；空则用 `asc` 默认。 |
-| `mode` | `read-only` | 以 `READ_ONLY_MODE` 拒绝 App Store Connect 写入；设为 `write` 才能发布。 |
-| `requireApproval` | `true` | 模型发起的写入前询问人类；面板自己的写入用确认步骤。 |
-| `timeoutMs` | `60000` | 普通 `asc` 调用的超时。 |
-| `longTimeoutMs` | `1800000` | `run` 超时与工具执行预算的上界。 |
-| `maxOutputBytes` | `262144` | 返回给面板或模型的日志/stdout 文本上限。 |
-| `telemetryDisabled` | `true` | 以 `ASC_TELEMETRY_DISABLED=1` 运行 `asc`。 |
-| `bypassKeychain` | `false` | 以 `ASC_BYPASS_KEYCHAIN=1` 运行，凭据落到配置文件而非 Keychain。不推荐。 |
-| `defaultAppId` | `null` | 动作未提供 `appId` 时使用的应用 id。 |
-| `vendorNumber` | `null` | 销售报表用的 vendor number，来自 Sales and Trends 页面 URL。 |
+| `ascPath` | `asc` | Binary to run: a bare name resolved on `PATH`, or an absolute path. |
+| `profile` | `null` | Named `asc` auth profile passed as `--profile`; empty uses `asc`'s default. |
+| `mode` | `read-only` | Refuses App Store Connect writes with `READ_ONLY_MODE`; set `write` to publish. |
+| `requireApproval` | `true` | Ask the human before a tool-driven write; the panel's own writes use their confirm step. |
+| `timeoutMs` | `60000` | Deadline for ordinary `asc` calls. |
+| `longTimeoutMs` | `1800000` | Upper bound for the `run` timeout and the tool's execution budget. |
+| `maxOutputBytes` | `262144` | Cap on any log or stdout text returned to the panel or the model. |
+| `telemetryDisabled` | `true` | Runs `asc` with `ASC_TELEMETRY_DISABLED=1`. |
+| `bypassKeychain` | `false` | Runs `asc` with `ASC_BYPASS_KEYCHAIN=1`; credentials go to a config file instead of the Keychain. Not recommended. |
+| `defaultAppId` | `null` | App id used when an action omits `appId`. |
+| `vendorNumber` | `null` | Your vendor number from the Sales and Trends URL; required for sales summaries. |
 
-> `mode` 有两条路。面板页脚的 `read-only mode` / `write mode` 徽标就是开关，点一下只改**本次会话**
-> 的门禁（`mode.set`，不写盘）；要下次启动仍然生效，在插件管理器里把这一行的 `config.mode` 改成
-> `write`，或在 profile 的 `cordis.patch.yml` 里覆盖 —— 插件不会自己改写 profile 补丁。
+> `mode` has two paths. The `read-only mode` / `write mode` pill in the panel footer is the switch: it
+> flips **this session only** (`mode.set`, nothing written to disk). To keep it for the next start, set
+> the row's `config.mode` to `write` in the Plugin Manager, or override it in the profile's
+> `cordis.patch.yml` — the plugin never rewrites the profile patch itself.
 
-面板把选中的应用 id 存在 `localStorage`（`dsh.asc-hub.v1.app`）；Host 不保存选择状态。
+The panel keeps the selected app id in `localStorage` (`dsh.asc-hub.v1.app`); the Host holds no
+selection state.
 
-## 开发
+## Development
 
-代码是 TypeScript。两个 `tsc` 项目构建 `dist/`：Host 输出 ESM 与声明文件，client 输出单个脚本
-（`module: none`）—— 也就是 Harness 模块加载器实际求值的那一个文件。
+The code is TypeScript. Two `tsc` projects build `dist/`: the Host as ESM with declarations, the
+client as a single script (`module: none`) — the one file the Harness module loader evaluates.
 
 ```
-src/index.ts            Host 入口：apply(ctx, config)
-src/host/*.ts           config、exec、asc 缝合层、engine、auth、ops、dispatch、rpc、tool、skills、
-                        workspace、build、redact，以及 types.ts（DSH 未公开的那层表面）
-src/client.ts           面板：状态按钮、onboarding、控制台
-test/*.ts               host 测试，编译后对着 dist/ 运行
-client/__smoke__.mts    client 测试台：按加载器的方式加载 dist/client.js
+src/index.ts            Host entry: apply(ctx, config)
+src/host/*.ts           config, exec, asc seam, engine, auth, ops, dispatch, rpc, tool, skills,
+                        workspace, build, redact, and types.ts (the surface DSH does not publish)
+src/client.ts           the panel: trigger, onboarding, console
+test/*.ts               host tests, compiled and run against dist/
+client/__smoke__.mts    the client harness: loads dist/client.js the way the loader does
 ```
 
 ```sh
-npm run build      # dist/（host + client）
-npm run check      # 四个项目 tsc --noEmit
-npm test           # 61 项 host 测试，跑 dist/
-npm run smoke      # 248 项 client 检查，跑 dist/client.js
-npm run verify     # 以上全部
+npm run build      # dist/ (host + client)
+npm run check      # tsc --noEmit on all four projects
+npm test           # 61 host tests against dist/
+npm run smoke      # 248 client checks against dist/client.js
+npm run verify     # all of the above
 ```
 
-要在 Harness 里跑自己的 checkout：`plugin_manager` → `install_bundle`，传本目录的绝对路径 ——
-那是 `link:` 安装，只用于开发，无法原地升级。改完 `src/**` 需要 `npm run build` 面板才会看到；Host 侧
-还要重装这一行，让模块代际重新加载。
-约定、不变量与模块图见 [AGENTS.md](https://github.com/sleep9ull/dsh-asc-hub/blob/main/AGENTS.md)、
-[docs/WORKFLOW.md](https://github.com/sleep9ull/dsh-asc-hub/blob/main/docs/WORKFLOW.md)。
+To run your checkout inside the Harness, `plugin_manager` → `install_bundle` with this directory's
+absolute path: that is a `link:` install, kept for development and deliberately not updatable in
+place. Editing `src/**` then needs `npm run build` before the panel sees it, and the Host half
+additionally needs the row reinstalled so its module generation reloads. Conventions, invariants and the module map:
+[AGENTS.md](https://github.com/sleep9ull/dsh-asc-hub/blob/main/AGENTS.md), [docs/ARCHITECTURE.md](https://github.com/sleep9ull/dsh-asc-hub/blob/main/docs/ARCHITECTURE.md),
+[docs/WORKFLOW.md](https://github.com/sleep9ull/dsh-asc-hub/blob/main/docs/WORKFLOW.md).
 
-## 已知限制
+## Limitations
 
-- **Build 需要完整 Xcode。** 没有时面板给出 `cannot build` 及原因，控制台其余部分照常工作。
-- **销售与 analytics 只有 Host 动作，还没有卡片。** `sales.summary` 与 `analytics.reports` 已实现、
-  模型可用；面板卡片暂未启用。
-- **不支持月周期销售与原始 TSV 导出**（`analytics sales --output` 是文件路径）。
-- **上传与等待只有一个翻转的 `busy` 状态**，没有流式进度。
-- **页脚的更新标记是惰性的**：`status.update` 目前是常量，通知与动作由 **Plugins → Installed（插件 → 已安装）** 负责。
-- **本文件刻意不放截图。** 面板跟随 Harness 主题渲染，静态图片比这段文字过期得更快。
+- **Build needs a full Xcode.** Without it the panel reports `cannot build` with the reason and the
+  rest of the console keeps working.
+- **Sales and analytics have Host actions but no card yet.** `sales.summary` and
+  `analytics.reports` are implemented and available to the model; the panel cards are parked.
+- **No month-period sales and no raw TSV export** (`analytics sales --output` is a file path).
+- **Uploads and waits are one flipping `busy` state**, not streamed progress.
+- **The footer's update tag is inert**: `status.update` is a constant, and **Plugins → Installed**
+  owns the notice and the action.
+- **No screenshots in this file on purpose.** The panel renders with the Harness theme; a static
+  image would go stale faster than this text.
 
-## 文档
+## Documentation
 
 | | |
 |---|---|
-| [docs/CONTRACT.md](https://github.com/sleep9ull/dsh-asc-hub/blob/main/docs/CONTRACT.md) | 线协议：传输、动作、门禁、Hub 状态、错误码、脱敏、配置 —— 权威文档 |
-| [docs/ARCHITECTURE.md](https://github.com/sleep9ull/dsh-asc-hub/blob/main/docs/ARCHITECTURE.md) | 流水线、模块图、构建 |
-| [docs/ONBOARDING.md](https://github.com/sleep9ull/dsh-asc-hub/blob/main/docs/ONBOARDING.md) | 引擎、API Key、密钥角色、排错 |
-| [docs/OPERATIONS.md](https://github.com/sleep9ull/dsh-asc-hub/blob/main/docs/OPERATIONS.md) | 每个控制台动作实际跑什么、怎么读输出 |
-| [docs/UPSTREAM-ASC.md](https://github.com/sleep9ull/dsh-asc-hub/blob/main/docs/UPSTREAM-ASC.md) | 从 `asc` 继承了什么、升级如何流动 |
-| [docs/RELEASING.md](https://github.com/sleep9ull/dsh-asc-hub/blob/main/docs/RELEASING.md) | 分发、发现、升级矩阵、上架检查 |
-| [docs/WORKFLOW.md](https://github.com/sleep9ull/dsh-asc-hub/blob/main/docs/WORKFLOW.md) | 日常节奏：何时构建、何时升版本、何时发布 |
-| [AGENTS.md](https://github.com/sleep9ull/dsh-asc-hub/blob/main/AGENTS.md) | 给在本仓库工作的 agent 的不变量与模块图 |
+| [docs/CONTRACT.md](https://github.com/sleep9ull/dsh-asc-hub/blob/main/docs/CONTRACT.md) | the wire contract: transport, actions, gating, Hub state, error codes, redaction, configuration — authoritative |
+| [docs/ARCHITECTURE.md](https://github.com/sleep9ull/dsh-asc-hub/blob/main/docs/ARCHITECTURE.md) | the pipeline, the module map, the build |
+| [docs/ONBOARDING.md](https://github.com/sleep9ull/dsh-asc-hub/blob/main/docs/ONBOARDING.md) | engine, API key, key roles, troubleshooting |
+| [docs/OPERATIONS.md](https://github.com/sleep9ull/dsh-asc-hub/blob/main/docs/OPERATIONS.md) | what each console action runs and how to read its output |
+| [docs/UPSTREAM-ASC.md](https://github.com/sleep9ull/dsh-asc-hub/blob/main/docs/UPSTREAM-ASC.md) | what is inherited from `asc` and how upgrades flow |
+| [docs/RELEASING.md](https://github.com/sleep9ull/dsh-asc-hub/blob/main/docs/RELEASING.md) | distribution, discovery, upgrade matrix, listing checks |
+| [docs/WORKFLOW.md](https://github.com/sleep9ull/dsh-asc-hub/blob/main/docs/WORKFLOW.md) | the day-to-day loop: when to build, bump, release |
+| [AGENTS.md](https://github.com/sleep9ull/dsh-asc-hub/blob/main/AGENTS.md) | invariants and the module map, for agents working in this repo |
 
-## 许可证
+## License
 
-插件以 MIT 许可发布 —— 见 [LICENSE](https://github.com/sleep9ull/dsh-asc-hub/blob/main/LICENSE)。`asc` CLI 同为 MIT 许可，Copyright (c) 2026
-Rudrank Riyam；它独立安装、不随本插件分发 —— 见 [THIRD_PARTY_NOTICES.md](https://github.com/sleep9ull/dsh-asc-hub/blob/main/THIRD_PARTY_NOTICES.md)。
+The plugin is MIT licensed — see [LICENSE](https://github.com/sleep9ull/dsh-asc-hub/blob/main/LICENSE). The `asc` CLI is MIT licensed, Copyright (c)
+2026 Rudrank Riyam; it is installed separately and not bundled — see
+[THIRD_PARTY_NOTICES.md](https://github.com/sleep9ull/dsh-asc-hub/blob/main/THIRD_PARTY_NOTICES.md).
 
-本项目独立且非官方，与 Apple Inc. 无隶属、背书或赞助关系。App Store Connect、TestFlight、
-Xcode Cloud 与 Apple 是 Apple Inc. 的商标。
+This project is independent and unofficial. It is not affiliated with, endorsed by, or sponsored by
+Apple Inc. App Store Connect, TestFlight, Xcode Cloud and Apple are trademarks of Apple Inc.

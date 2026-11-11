@@ -102,8 +102,9 @@ Rules that never bend:
 5. Commit. No tag: `gitHead` records the commit at publish time.
 6. `npm publish` — `prepublishOnly` re-runs `check` + tests, and refuses to publish a broken tree.
    `npm pack --dry-run` first if the `files` list changed (~122 kB packed, 46 files today).
-   The README the registry renders is the tarball's `README.md`, and every link in it is absolute:
-   npmjs.com does not resolve relative paths, so `README.en.md`, `docs/**` and `icon.svg` must stay
+   The README the registry renders is the tarball's `README.md` — English, since the translations are
+   `README.zh.md`, `README.ko.md` and `README.ja.md` — and every link in it is absolute:
+   npmjs.com does not resolve relative paths, so `README.zh.md`, `docs/**` and `icon.svg` must stay
    full URLs or they are 404s on the package page.
 7. `git push origin main`.
 8. Re-verify the published copy the way a user gets it — remove the `link:` dependency and install

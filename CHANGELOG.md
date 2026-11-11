@@ -6,6 +6,33 @@ All notable changes to `dsh-asc-hub` are recorded here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- **A new icon.** `icon.svg` is now a flat re-drawing of the App Store Connect visual language — the
+  blue field, the inset rounded frame and the three-stroke A — inverted to white-on-blue on a squircle,
+  with one gradient that runs through the product accent (`#0071E3`). It is original artwork and not
+  Apple's asset; the panel's `--asc-hub-accent` is unchanged, and the READMEs keep pointing at the same
+  absolute URL. The old mark was a dark navy tile with a mint chevron, which read as an upload button
+  rather than as the App Store.
+
+- **README badges became links, and three of them became data.** In all four READMEs every badge is
+  now an anchor to the thing it asserts: `dsh` opens the *Requirements* section of that language's own
+  file, Node opens nodejs.org, `TypeScript strict` opens `tsconfig.json` (the file that carries
+  `"strict": true`), `license` opens `LICENSE`, `stars` opens `stargazers`, `npm` opens the package
+  page. The `dsh`, `Node` and license badges also stopped being hand-typed: they read `engines.dsh`
+  from the repository's `package.json` (`badge/dynamic/json`), `engines.node` from the registry
+  (`node/v`) and the license from the registry (`npm/l`), so they can no longer drift from the
+  manifest. The hand-typed `>=0.2.2-rc.1 <0.3.0`, `>=22` and `MIT` strings in the badge row are gone.
+
+- **English is now the default README.** `README.md` is the English document — the one the repository
+  opens on and the one npm renders — and the Chinese translation moved to `README.zh.md`, beside
+  `README.ko.md` and `README.ja.md`. The language line under the title now reads
+  `English | 简体中文 | 한국어 | 日本語`, with the current language left unlinked and the other three
+  reached by absolute URL; `README.en.md` is gone, so older links to it must land on `README.md`.
+  This also fixes the translated pages' DSH badge: it used to point at the repository root, whose
+  anchor only ever exists in the default README, and now targets the requirements anchor inside its
+  own file.
+
 ## [0.1.0] — 2026-11-10
 
 The first public release. `dsh-asc-hub` puts the post-coding half of shipping an iOS app in a
